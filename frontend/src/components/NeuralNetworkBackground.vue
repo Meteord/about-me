@@ -121,4 +121,8 @@
   </div>
 </template>
 
+<script setup lang="ts">
+// No logic needed, purely presentational
+</script>
+
 

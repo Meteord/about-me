@@ -58,4 +58,3 @@ const tag3Class = computed(() => props.reduced
   : 'px-4 py-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold shadow-lg animate-fade-in');
 </script>
 
-
