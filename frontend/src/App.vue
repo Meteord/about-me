@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import VoxtralDemo from "./components/VoxtralDemo.vue";
 import { ref } from 'vue'
 import AboutSection from './components/AboutSection.vue'
 import ProjectsSection from './components/ProjectsSection.vue'
@@ -70,6 +71,7 @@ function toggleVersion() {
       <AboutSection />
       <ProjectsSection />
       <ContactSection />
+        <VoxtralDemo />
     </main>
     <main
       v-else

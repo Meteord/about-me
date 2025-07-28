@@ -18,6 +18,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.7.0",
     "@tailwindcss/vite": "^4.1.11",
     "vue": "^3.5.18"
   },
@@ -44,6 +45,7 @@
     "typescript": "~5.8.0",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-vue-devtools": "^8.0.0",
-    "vue-tsc": "^3.0.4"
+    "vue-tsc": "^3.0.4",
+    "@webgpu/types": "^0.1.63"
   }
 }
