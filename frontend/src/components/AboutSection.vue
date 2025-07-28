@@ -14,6 +14,42 @@
           <span :class="tag2Class">Tech Innovator</span>
           <span :class="tag3Class">Munich Citizen</span>
         </div>
+        <!-- Education -->
+        <div :class="[sectionBlockClass, 'mt-8']">
+          <h2 :class="sectionTitleClass">Education</h2>
+          <ul :class="sectionListClass">
+            <li><strong>B.Sc. Computer Science</strong>, Hochschule München (2012–2016)<br />
+              Thesis: VANET Overlay Networks
+            </li>
+            <li><strong>M.Sc. Computer Science</strong>, TU München (2017–2022, part-time)<br />
+              Focus: Machine Learning & Software Engineering<br />
+              Thesis: Protein Language Models for Structure Prediction
+            </li>
+          </ul>
+        </div>
+        <!-- Skills -->
+        <div :class="sectionBlockClass">
+          <h2 :class="sectionTitleClass">Skills</h2>
+          <ul :class="sectionListClass">
+            <li><strong>Machine Learning:</strong> Pytorch, Huggingface Transformers, Scikit-learn</li>
+            <li><strong>GenAI Frameworks:</strong> Langchain, Langgraph</li>
+            <li><strong>Frontend:</strong> React, Vue.js</li>
+            <li><strong>Backend:</strong> FastAPI, Spring</li>
+            <li><strong>DevOps:</strong> Gitlab Pipelines, Github Pipelines, Terraform, Openshift, Helm, Kubernetes</li>
+            <li><strong>Programming Languages:</strong> Python, Java, Typescript, C++</li>
+            <li><strong>Others:</strong> OpenCV, OpenGL, OMNeT++</li>
+          </ul>
+        </div>
+        <!-- Hobbies -->
+        <div :class="sectionBlockClass">
+          <h2 :class="sectionTitleClass">Hobbies</h2>
+          <div :class="tagsClass">
+            <span class="px-3 py-1 rounded bg-blue-100 text-blue-800 text-sm font-semibold">Running</span>
+            <span class="px-3 py-1 rounded bg-green-100 text-green-800 text-sm font-semibold">Cycling</span>
+            <span class="px-3 py-1 rounded bg-yellow-100 text-yellow-800 text-sm font-semibold">Dog walks</span>
+            <span class="px-3 py-1 rounded bg-purple-100 text-purple-800 text-sm font-semibold">Reading</span>
+          </div>
+        </div>
       </div>
     </transition>
   </section>
@@ -56,5 +92,16 @@ const tag2Class = computed(() => props.reduced
 const tag3Class = computed(() => props.reduced
   ? 'px-3 py-1 rounded bg-purple-100 text-purple-800 text-sm font-semibold'
   : 'px-4 py-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold shadow-lg animate-fade-in');
+
+// Section block styling
+const sectionBlockClass = computed(() => props.reduced
+  ? 'w-full bg-gray-100 rounded-lg p-4 mb-4 text-left'
+  : 'w-full bg-white/10 rounded-xl p-6 mb-6 text-left shadow-lg backdrop-blur-md');
+const sectionTitleClass = computed(() => props.reduced
+  ? 'text-xl font-bold text-blue-700 mb-2'
+  : 'text-2xl font-bold text-blue-300 mb-3 drop-shadow');
+const sectionListClass = computed(() => props.reduced
+  ? 'list-disc pl-5 text-gray-700 text-base'
+  : 'list-disc pl-6 text-slate-200 text-lg');
 </script>
 

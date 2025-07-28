@@ -6,21 +6,47 @@
     </button>
     <transition name="fade">
       <div v-if="showProjects" :class="contentClass">
-        <h2 :class="subtitleClass">About</h2>
-        <p :class="descClass">I'm passionate about <span class="font-semibold text-cyan-400">AI</span>, technology, and public service.<br>At <span class="font-semibold text-blue-400">KICC</span>, I help drive innovation for the city of Munich.<br>I enjoy collaborating on meaningful projects and learning new things.</p>
-        <h2 :class="subtitleClass">Projects</h2>
-        <ul :class="listClass">
-          <li :class="project1Class">
-            <h3 :class="projectTitle1Class">AI for City Services</h3>
-            <p :class="projectDescClass">Developing AI-powered solutions to improve public services in Munich.</p>
-            <a href="https://github.com/mjaumann/ai-city-services" target="_blank" rel="noopener" :class="projectLink1Class">View on GitHub</a>
-          </li>
-          <li :class="project2Class">
-            <h3 :class="projectTitle2Class">Open Data Platform</h3>
-            <p :class="projectDescClass">Building a platform to make city data accessible and useful for citizens and developers.</p>
-            <a href="https://github.com/mjaumann/open-data-platform" target="_blank" rel="noopener" :class="projectLink2Class">View on GitHub</a>
-          </li>
-        </ul>
+        <div class="w-full flex flex-col md:flex-row gap-8 items-stretch">
+          <div :class="project1Class + ' flex flex-col justify-between w-full md:w-2/3'">
+            <h3 :class="projectTitle1Class + ' text-3xl mb-4'">MUCGPT</h3>
+            <p :class="projectDescClass + ' text-lg mb-6'">
+              MUCGPT is Munich's open-source AI chatbot for citizens, enabling secure and customizable interactions with large language models. Users can create and share their own assistants, with roles and rights managed via Single Sign-On. The platform is designed for extensibility, privacy, and ease of use in public sector applications.
+            </p>
+            <div class="mt-auto pt-4 flex justify-end">
+              <a href="https://github.com/it-at-m/mucgpt" target="_blank" rel="noopener" :class="projectLink1Class + ' text-lg'">View on GitHub</a>
+            </div>
+          </div>
+          <div class="flex flex-col justify-center w-full md:w-1/3">
+            <span class="font-semibold text-blue-400 mb-2">Technology Stack:</span>
+            <div class="grid grid-cols-1 gap-4">
+              <div class="bg-blue-900/40 rounded-lg p-4">
+                <span class="font-bold text-blue-300">Frontend</span>
+                <ul class="list-disc ml-5 text-blue-100 text-base mt-1">
+                  <li>React</li>
+                  <li>Typescript</li>
+                  <li>Javascript</li>
+                </ul>
+              </div>
+              <div class="bg-purple-900/40 rounded-lg p-4">
+                <span class="font-bold text-purple-300">Backend</span>
+                <ul class="list-disc ml-5 text-purple-100 text-base mt-1">
+                  <li>FastAPI</li>
+                  <li>LangGraph</li>
+                  <li>Python</li>
+                </ul>
+              </div>
+              <div class="bg-slate-900/40 rounded-lg p-4">
+                <span class="font-bold text-slate-300">Deployment</span>
+                <ul class="list-disc ml-5 text-slate-100 text-base mt-1">
+                  <li>Docker</li>
+                  <li>API Gateway</li>
+                  <li>PostgresDB</li>
+                  <li>Keycloak</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </transition>
   </section>
