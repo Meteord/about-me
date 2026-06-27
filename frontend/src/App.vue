@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import AboutSection from './components/AboutSection.vue'
 import ProjectsSection from './components/ProjectsSection.vue'
 import ContactSection from './components/ContactSection.vue'
 import NeuralNetworkBackground from './components/NeuralNetworkBackground.vue'
 
-const VoxtralDemo = defineAsyncComponent(() => import('./components/VoxtralDemo.vue'))
-
 const isReduced = ref(false)
-const showVoxtral = ref(false)
 const showLoader = ref(true)
 let loaderTimeout: number | null = null
 
@@ -86,12 +83,6 @@ function toggleVersion() {
       <AboutSection />
       <ProjectsSection />
       <ContactSection />
-      <div class="w-full max-w-2xl mt-2 mb-4 flex justify-end">
-        <button @click="showVoxtral = !showVoxtral" class="px-4 py-2 pixel-btn pixel-text text-cyan-200">
-          {{ showVoxtral ? 'Hide AI Demo' : 'Load AI Demo' }}
-        </button>
-      </div>
-      <VoxtralDemo v-if="showVoxtral" />
     </main>
     <main
       v-else
