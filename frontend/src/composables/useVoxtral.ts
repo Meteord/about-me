@@ -8,23 +8,59 @@ import {
 
 type VoxtralStatus = "idle" | "loading" | "ready" | "transcribing" | "error";
 
+type VoxtralProcessorLike = {
+  tokenizer: unknown;
+  apply_chat_template: (
+    conversation: Array<{ role: string; content: Array<{ type: string; text?: string }> }>,
+    options: { tokenize: boolean },
+  ) => string;
+  (text: string, audio: Float32Array): Promise<Record<string, unknown>>;
+};
+
+type VoxtralModelLike = {
+  generate: (options: Record<string, unknown>) => Promise<unknown>;
+};
+
+type InterruptableStoppingCriteriaLike = {
+  interrupt: () => void;
+};
+
+const globalVoxtral = window as Window & {
+  __VOXTRAL_PROCESSOR__?: VoxtralProcessorLike | null;
+  __VOXTRAL_MODEL__?: VoxtralModelLike | null;
+};
+
+function formatError(err: unknown) {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export function useVoxtral() {
   const status = ref<VoxtralStatus>("idle");
   const error = ref<string | null>(null);
   const transcription = ref<string>("");
 
-  const processorRef = ref<any>((window as any).__VOXTRAL_PROCESSOR__ || null);
-  const modelRef = ref<any>((window as any).__VOXTRAL_MODEL__ || null);
-  const stoppingCriteriaRef = ref<any>(null);
+  const processorRef = ref<VoxtralProcessorLike | null>(globalVoxtral.__VOXTRAL_PROCESSOR__ || null);
+  const modelRef = ref<VoxtralModelLike | null>(globalVoxtral.__VOXTRAL_MODEL__ || null);
+  const stoppingCriteriaRef = ref<InterruptableStoppingCriteriaLike | null>(null);
 
   const loadModel = async () => {
+    if (status.value === "loading") {
+      return;
+    }
+    if (processorRef.value && modelRef.value) {
+      status.value = "ready";
+      error.value = null;
+      return;
+    }
+
     status.value = "loading";
     error.value = null;
     try {
       if (!processorRef.value || !modelRef.value) {
         const model_id = "onnx-community/Voxtral-Mini-3B-2507-ONNX";
-        const processor = await VoxtralProcessor.from_pretrained(model_id);
-        const model = await VoxtralForConditionalGeneration.from_pretrained(model_id, {
+        const processor = (await VoxtralProcessor.from_pretrained(model_id)) as unknown as VoxtralProcessorLike;
+        const model = (await VoxtralForConditionalGeneration.from_pretrained(model_id, {
           dtype: {
             embed_tokens: "q4",
             audio_encoder: "q4",
@@ -35,16 +71,18 @@ export function useVoxtral() {
             audio_encoder: "webgpu",
             decoder_model_merged: "webgpu",
           },
-        });
+        })) as unknown as VoxtralModelLike;
         processorRef.value = processor;
         modelRef.value = model;
-        (window as any).__VOXTRAL_PROCESSOR__ = processor;
-        (window as any).__VOXTRAL_MODEL__ = model;
+        globalVoxtral.__VOXTRAL_PROCESSOR__ = processor;
+        globalVoxtral.__VOXTRAL_MODEL__ = model;
       }
       status.value = "ready";
-    } catch (err: any) {
+    } catch (err: unknown) {
       status.value = "error";
-      error.value = "Failed to load model: " + (err?.message || err);
+      error.value =
+        "Model initialization failed. Check your network and browser WebGPU support, then retry. Details: " +
+        formatError(err);
     }
   };
 
@@ -52,7 +90,7 @@ export function useVoxtral() {
     const processor = processorRef.value;
     const model = modelRef.value;
     if (!processor || !model) {
-      error.value = "Model not loaded";
+      error.value = "Model not ready. Initialize the model first.";
       status.value = "error";
       return;
     }
@@ -60,7 +98,7 @@ export function useVoxtral() {
     transcription.value = "";
     error.value = null;
     try {
-      const conversation = [
+      const conversation: Array<{ role: string; content: Array<{ type: string; text?: string }> }> = [
         {
           role: "user",
           content: [{ type: "audio" }, { type: "text", text: `lang:${language}[TRANSCRIBE]` }],
@@ -70,16 +108,19 @@ export function useVoxtral() {
       const inputs = await processor(text, audio);
 
       let output = "";
-      const streamer = new TextStreamer(processor.tokenizer, {
+      const streamer = new TextStreamer(
+        processor.tokenizer as ConstructorParameters<typeof TextStreamer>[0],
+        {
         skip_special_tokens: true,
         skip_prompt: true,
         callback_function: (token: string) => {
           output += token;
           transcription.value += token;
         },
-      });
+        },
+      );
 
-      stoppingCriteriaRef.value = new InterruptableStoppingCriteria();
+      stoppingCriteriaRef.value = new InterruptableStoppingCriteria() as InterruptableStoppingCriteriaLike;
 
       await model.generate({
         ...inputs,
@@ -90,9 +131,9 @@ export function useVoxtral() {
 
       status.value = "ready";
       return output;
-    } catch (err: any) {
+    } catch (err: unknown) {
       status.value = "error";
-      error.value = "Transcription failed: " + (err?.message || err);
+      error.value = "Transcription failed: " + formatError(err);
     } finally {
       stoppingCriteriaRef.value = null;
     }

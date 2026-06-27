@@ -1,121 +1,66 @@
 <template>
   <div class="absolute inset-0 z-0 pointer-events-none">
     <svg width="100%" height="100%" viewBox="0 0 1200 800" preserveAspectRatio="none" class="w-full h-full">
-      <!-- Neurons (stars) -->
-      <g>
-        <circle cx="200" cy="400" r="12" fill="#fff" opacity="0.35" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="12;15;12" dur="2s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="300" cy="300" r="10" fill="#38bdf8" opacity="0.25" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="10;13;10" dur="2.2s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="300" cy="500" r="10" fill="#a78bfa" opacity="0.25" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="10;13;10" dur="2.2s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="600" cy="400" r="16" fill="#f472b6" opacity="0.3" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="16;19;16" dur="2.4s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="950" cy="350" r="12" fill="#38bdf8" opacity="0.25" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="12;15;12" dur="2.1s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="950" cy="450" r="12" fill="#a78bfa" opacity="0.25" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="12;15;12" dur="2.1s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="1100" cy="400" r="18" fill="#fff" opacity="0.35" filter="url(#glow-subtle)">
-          <animate attributeName="r" values="18;21;18" dur="2.3s" repeatCount="indefinite" />
-        </circle>
+      <rect width="1200" height="800" fill="url(#pixel-grid)" opacity="0.35" />
+
+      <g class="pixel-links">
+        <line x1="1060" y1="400" x2="900" y2="320" />
+        <line x1="1060" y1="400" x2="900" y2="480" />
+        <line x1="900" y1="320" x2="620" y2="400" />
+        <line x1="900" y1="480" x2="620" y2="400" />
+        <line x1="620" y1="400" x2="320" y2="280" />
+        <line x1="620" y1="400" x2="320" y2="520" />
+        <line x1="320" y1="280" x2="170" y2="400" />
+        <line x1="320" y1="520" x2="170" y2="400" />
       </g>
-      <!-- Connections (backpropagation arrows, animated) -->
-      <g>
-        <polyline points="1100,400 950,350" stroke="#38bdf8" stroke-width="2" opacity="0.18" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#38bdf8;#a78bfa;#38bdf8" dur="2s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="1100,400 950,450" stroke="#a78bfa" stroke-width="2" opacity="0.18" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#a78bfa;#f472b6;#a78bfa" dur="2s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="950,350 600,400" stroke="#f472b6" stroke-width="1.5" opacity="0.13" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#f472b6;#38bdf8;#f472b6" dur="2.2s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="950,450 600,400" stroke="#a78bfa" stroke-width="1.5" opacity="0.13" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#a78bfa;#38bdf8;#a78bfa" dur="2.2s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="600,400 300,300" stroke="#38bdf8" stroke-width="1.2" opacity="0.09" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#38bdf8;#f472b6;#38bdf8" dur="2.4s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="600,400 300,500" stroke="#f472b6" stroke-width="1.2" opacity="0.09" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#f472b6;#a78bfa;#f472b6" dur="2.4s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="300,300 200,400" stroke="#fff" stroke-width="1" opacity="0.07" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#fff;#38bdf8;#fff" dur="2.6s" repeatCount="indefinite" />
-        </polyline>
-        <polyline points="300,500 200,400" stroke="#fff" stroke-width="1" opacity="0.07" marker-end="url(#arrow)" >
-          <animate attributeName="stroke" values="#fff;#a78bfa;#fff" dur="2.6s" repeatCount="indefinite" />
-        </polyline>
+
+      <g class="pixel-nodes">
+        <rect x="1038" y="378" width="44" height="44" class="node-white">
+          <animate attributeName="opacity" values="0.75;0.45;0.75" dur="1.2s" repeatCount="indefinite" />
+        </rect>
+        <rect x="882" y="302" width="36" height="36" class="node-cyan">
+          <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.1s" repeatCount="indefinite" begin="0.2s" />
+        </rect>
+        <rect x="882" y="462" width="36" height="36" class="node-violet">
+          <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.1s" repeatCount="indefinite" begin="0.5s" />
+        </rect>
+        <rect x="594" y="374" width="52" height="52" class="node-amber">
+          <animate attributeName="opacity" values="0.9;0.5;0.9" dur="1.3s" repeatCount="indefinite" begin="0.3s" />
+        </rect>
+        <rect x="304" y="264" width="32" height="32" class="node-cyan">
+          <animate attributeName="opacity" values="0.75;0.35;0.75" dur="1.2s" repeatCount="indefinite" begin="0.4s" />
+        </rect>
+        <rect x="304" y="504" width="32" height="32" class="node-violet">
+          <animate attributeName="opacity" values="0.75;0.35;0.75" dur="1.2s" repeatCount="indefinite" begin="0.1s" />
+        </rect>
+        <rect x="152" y="382" width="36" height="36" class="node-white">
+          <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.4s" repeatCount="indefinite" begin="0.7s" />
+        </rect>
       </g>
-      <!-- Propagation animation: signals moving along connections -->
-      <g>
-        <circle r="18" fill="#38bdf8" opacity="0.13" filter="url(#glow-subtle)">
-          <animateMotion dur="2.2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
-            <mpath xlink:href="#path1" />
-          </animateMotion>
-        </circle>
-        <circle r="18" fill="#a78bfa" opacity="0.13" filter="url(#glow-subtle)">
-          <animateMotion dur="2.2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" begin="1.1s">
-            <mpath xlink:href="#path2" />
-          </animateMotion>
-        </circle>
-        <circle r="14" fill="#f472b6" opacity="0.11" filter="url(#glow-subtle)">
-          <animateMotion dur="2.4s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
-            <mpath xlink:href="#path3" />
-          </animateMotion>
-        </circle>
-        <circle r="14" fill="#a78bfa" opacity="0.11" filter="url(#glow-subtle)">
-          <animateMotion dur="2.4s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" begin="1.2s">
-            <mpath xlink:href="#path4" />
-          </animateMotion>
-        </circle>
-        <circle r="12" fill="#38bdf8" opacity="0.09" filter="url(#glow-subtle)">
-          <animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
-            <mpath xlink:href="#path5" />
-          </animateMotion>
-        </circle>
-        <circle r="12" fill="#f472b6" opacity="0.09" filter="url(#glow-subtle)">
-          <animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" begin="1.3s">
-            <mpath xlink:href="#path6" />
-          </animateMotion>
-        </circle>
-        <circle r="10" fill="#fff" opacity="0.07" filter="url(#glow-subtle)">
-          <animateMotion dur="2.8s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
-            <mpath xlink:href="#path7" />
-          </animateMotion>
-        </circle>
-        <circle r="10" fill="#a78bfa" opacity="0.07" filter="url(#glow-subtle)">
-          <animateMotion dur="2.8s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" begin="1.4s">
-            <mpath xlink:href="#path8" />
-          </animateMotion>
-        </circle>
+
+      <g class="pixel-signals">
+        <rect width="14" height="14" class="signal-cyan">
+          <animateMotion dur="1.5s" repeatCount="indefinite" calcMode="discrete" path="M1060,400 L900,320" />
+        </rect>
+        <rect width="14" height="14" class="signal-violet">
+          <animateMotion dur="1.5s" repeatCount="indefinite" calcMode="discrete" begin="0.7s" path="M1060,400 L900,480" />
+        </rect>
+        <rect width="12" height="12" class="signal-amber">
+          <animateMotion dur="1.7s" repeatCount="indefinite" calcMode="discrete" path="M900,320 L620,400" />
+        </rect>
+        <rect width="12" height="12" class="signal-amber">
+          <animateMotion dur="1.7s" repeatCount="indefinite" calcMode="discrete" begin="0.8s" path="M900,480 L620,400" />
+        </rect>
       </g>
-      <!-- Arrow marker, glow filter, and connection paths for propagation -->
+
       <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L8,4 L0,8" fill="#fff" opacity="0.5" />
-        </marker>
-        <filter id="glow-subtle" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-        <!-- Connection paths for animateMotion -->
-        <path id="path1" d="M1100,400 L950,350" />
-        <path id="path2" d="M1100,400 L950,450" />
-        <path id="path3" d="M950,350 L600,400" />
-        <path id="path4" d="M950,450 L600,400" />
-        <path id="path5" d="M600,400 L300,300" />
-        <path id="path6" d="M600,400 L300,500" />
-        <path id="path7" d="M300,300 L200,400" />
-        <path id="path8" d="M300,500 L200,400" />
+        <pattern id="pixel-grid" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="16" height="16" fill="#020617" />
+          <rect width="8" height="8" fill="#0b1120" />
+          <rect x="8" y="8" width="8" height="8" fill="#0b1120" />
+          <rect x="0" y="8" width="8" height="8" fill="#111827" opacity="0.7" />
+          <rect x="8" y="0" width="8" height="8" fill="#111827" opacity="0.7" />
+        </pattern>
       </defs>
     </svg>
   </div>
@@ -124,5 +69,51 @@
 <script setup lang="ts">
 // No logic needed, purely presentational
 </script>
+
+<style scoped>
+.pixel-links line {
+  stroke: #334155;
+  stroke-width: 4;
+  stroke-linecap: square;
+  opacity: 0.65;
+}
+
+.node-white {
+  fill: #e2e8f0;
+}
+
+.node-cyan {
+  fill: #22d3ee;
+}
+
+.node-violet {
+  fill: #818cf8;
+}
+
+.node-amber {
+  fill: #f59e0b;
+}
+
+.signal-cyan {
+  fill: #22d3ee;
+  opacity: 0.9;
+}
+
+.signal-violet {
+  fill: #818cf8;
+  opacity: 0.9;
+}
+
+.signal-amber {
+  fill: #f59e0b;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-signals {
+    display: none;
+  }
+}
+</style>
 
 

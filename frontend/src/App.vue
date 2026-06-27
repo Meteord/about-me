@@ -1,12 +1,29 @@
 <script setup lang="ts">
-import VoxtralDemo from "./components/VoxtralDemo.vue";
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import AboutSection from './components/AboutSection.vue'
 import ProjectsSection from './components/ProjectsSection.vue'
 import ContactSection from './components/ContactSection.vue'
 import NeuralNetworkBackground from './components/NeuralNetworkBackground.vue'
 
+const VoxtralDemo = defineAsyncComponent(() => import('./components/VoxtralDemo.vue'))
+
 const isReduced = ref(false)
+const showVoxtral = ref(false)
+const showLoader = ref(true)
+let loaderTimeout: number | null = null
+
+onMounted(() => {
+  loaderTimeout = window.setTimeout(() => {
+    showLoader.value = false
+  }, 1600)
+})
+
+onBeforeUnmount(() => {
+  if (loaderTimeout !== null) {
+    window.clearTimeout(loaderTimeout)
+  }
+})
+
 function toggleVersion() {
   isReduced.value = !isReduced.value
 }
@@ -16,13 +33,13 @@ function toggleVersion() {
   <div>
     <button
       @click="toggleVersion"
-      class="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg bg-white/80 text-slate-900 font-semibold hover:bg-blue-100 transition-all"
+      class="fixed top-4 right-4 z-50 px-4 py-2 pixel-btn pixel-text text-slate-100"
     >
       {{ isReduced ? 'Show Full Version' : 'Show Reduced Version' }}
     </button>
     <main
       v-if="!isReduced"
-      class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 px-4 py-6 relative overflow-hidden pt-8"
+      class="min-h-screen flex flex-col items-center justify-center bg-slate-950 px-4 py-6 relative overflow-hidden pt-8"
     >
       <transition name="ai-loader-fade">
         <div
@@ -64,14 +81,17 @@ function toggleVersion() {
           </div>
         </div>
       </transition>
-      <div
-        class="absolute inset-0 -z-10 animate-gradient bg-gradient-to-r from-blue-900 via-purple-900 to-slate-900 opacity-30 blur-lg"
-      ></div>
+      <div class="absolute inset-0 -z-10 opacity-40" style="background-image: repeating-linear-gradient(0deg, transparent 0 10px, rgba(30, 41, 59, 0.38) 10px 11px), repeating-linear-gradient(90deg, transparent 0 10px, rgba(30, 41, 59, 0.38) 10px 11px);"></div>
       <NeuralNetworkBackground />
       <AboutSection />
       <ProjectsSection />
       <ContactSection />
-        <VoxtralDemo />
+      <div class="w-full max-w-2xl mt-2 mb-4 flex justify-end">
+        <button @click="showVoxtral = !showVoxtral" class="px-4 py-2 pixel-btn pixel-text text-cyan-200">
+          {{ showVoxtral ? 'Hide AI Demo' : 'Load AI Demo' }}
+        </button>
+      </div>
+      <VoxtralDemo v-if="showVoxtral" />
     </main>
     <main
       v-else

@@ -1,5 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 @import "tailwindcss";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+	--pixel-bg: #0f172a;
+	--pixel-panel: #111827;
+	--pixel-panel-alt: #1f2937;
+	--pixel-ink: #e2e8f0;
+	--pixel-accent: #22d3ee;
+	--pixel-accent2: #f59e0b;
+	--pixel-border: #334155;
+}
+
+body {
+	background: radial-gradient(circle at 12% 20%, #1e293b 0, #0f172a 45%, #020617 100%);
+	color: var(--pixel-ink);
+}
+
+.pixel-panel {
+	background: linear-gradient(180deg, var(--pixel-panel) 0%, var(--pixel-panel-alt) 100%);
+	border: 2px solid var(--pixel-border);
+	box-shadow: 4px 4px 0 0 rgba(15, 23, 42, 0.9);
+	border-radius: 2px;
+}
+
+.pixel-title {
+	font-family: 'Press Start 2P', monospace;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.pixel-text {
+	font-family: 'VT323', monospace;
+	letter-spacing: 0.02em;
+}
+
+.pixel-btn {
+	border: 2px solid var(--pixel-border);
+	border-radius: 2px;
+	background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+	box-shadow: 2px 2px 0 0 rgba(15, 23, 42, 0.9);
+	transition: transform 120ms steps(2, end), box-shadow 120ms steps(2, end);
+}
+
+.pixel-btn:hover {
+	transform: translate(-1px, -1px);
+	box-shadow: 3px 3px 0 0 rgba(15, 23, 42, 0.9);
+}
+
+.pixel-btn:focus-visible {
+	outline: 2px solid var(--pixel-accent);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
