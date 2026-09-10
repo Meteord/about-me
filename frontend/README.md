@@ -1,39 +1,52 @@
-# about-me
+# frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+The full Vue 3 single-page application for the about-me site. Vite (rolldown-vite) + TypeScript, styled as a retro pixel-art CRT desktop.
 
-## Recommended IDE Setup
-
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Project setup
 
 ```sh
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+## Compile and hot-reload for development
 
 ```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+## Type-check, compile, and minify for production
 
 ```sh
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+`build` runs `type-check` (`vue-tsc --build`) and `build-only` (`vite build`) in parallel via `run-p`.
+
+## Lint
 
 ```sh
 npm run lint
 ```
+
+Runs oxlint then eslint, **both with `--fix`** (will modify files).
+
+## Format
+
+```sh
+npm run format
+```
+
+Runs `prettier --write src/`. No semicolons, single quotes, print width 100.
+
+## Structure
+
+- `src/App.vue` — renders the collapsible sections
+- `src/components/` — `AboutSection.vue`, `ProjectsSection.vue`, `ContactSection.vue`
+- `src/assets/main.css` — all global styling (components carry no `<style>` block)
+- `public/` — static assets; `mj.jpg` is referenced as root-absolute `/mj.jpg` and rewritten against `base` at build time
+
+## Deploy notes
+
+- `vite.config.ts` sets `base: '/about-me/'` — the site lives at that path on GitHub Pages. Do not change it.
+- `dist/` is gitignored — never commit build output.
+- The GitHub Pages deploy runs from the repo root workflow (`.github/workflows/gh-pages.yml`) on push to `main`.
