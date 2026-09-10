@@ -2,25 +2,42 @@
 import { nextTick, ref, watch } from 'vue'
 import { useChatModel } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
+import {
+  useToolRetrieval,
+  type RetrievalStats,
+  type ToolScore,
+} from '../composables/useToolRetrieval'
 import { siteData } from '../data/siteData'
 import {
   TOOL_SCHEMAS,
-  SYSTEM_PROMPT,
+  buildSystemPrompt,
   extractToolCallContent,
   extractPythonicCalls,
   executeToolCall,
+  pruneSchemas,
   type ToolResult,
 } from '../tools/registry'
+import ToolSelectorPanel from './ToolSelectorPanel.vue'
 
 type ChatMessage =
   | { id: number; role: 'user'; content: string }
   | { id: number; role: 'assistant'; content: string }
   | { id: number; role: 'tool-call'; calls: string[] }
   | { id: number; role: 'tool-result'; results: ToolResult[] }
+  | {
+      id: number
+      role: 'retrieval'
+      query: string
+      selectedNames: string[]
+      rows: ToolScore[]
+      stats: RetrievalStats
+      detailsOpen?: boolean
+    }
   | { id: number; role: 'error'; content: string }
 
 const { state, loadModel, generate, dispose } = useChatModel()
 const { focusSection } = useSiteLayout()
+const { mode: retrievalMode, topK: retrievalTopK, retrieve, disposeNeural } = useToolRetrieval()
 
 const input = ref('')
 const messages = ref<ChatMessage[]>([])
@@ -39,6 +56,7 @@ const EXAMPLES = [
   'Tell me about Michael\u2019s education',
   'What projects has Michael worked on?',
   'How can I contact Michael?',
+  'How does this site work?',
   'Move contact to the top',
   'Rotate the sections',
   'Hide the projects section',
@@ -49,6 +67,7 @@ const SECTION_LABEL: Record<SectionId, string> = {
   about: 'About',
   projects: 'Projects',
   contact: 'Contact',
+  tech: 'How it works',
 }
 
 const suggestions = ref<string[]>([])
@@ -99,6 +118,16 @@ function resultSection(results: ToolResult[]): SectionId | null {
 
 function isContactResult(results: ToolResult[]): boolean {
   return results.some((result) => result.kind === 'contact')
+}
+
+const TOOL_DESCRIPTION = new Map(
+  TOOL_SCHEMAS.map((tool) => [tool.function.name, tool.function.description]),
+)
+
+const toolDescription = (name: string): string => TOOL_DESCRIPTION.get(name) ?? ''
+
+function prunedPercent(stats: RetrievalStats): number {
+  return stats.totalChars ? Math.round((stats.prunedChars / stats.totalChars) * 100) : 0
 }
 
 function jumpTo(results: ToolResult[]): void {
@@ -197,14 +226,31 @@ async function handleSend(raw?: string): Promise<void> {
   isGenerating.value = true
 
   try {
+    const retrieval = await retrieve(text, {
+      topK: retrievalTopK.value,
+      mode: retrievalMode.value,
+    })
+    const selectedNames =
+      retrieval.selectedNames.length > 0
+        ? retrieval.selectedNames
+        : TOOL_SCHEMAS.map((tool) => tool.function.name)
+    const toolSchemas = pruneSchemas(selectedNames)
+    push('retrieval', {
+      query: text,
+      selectedNames,
+      rows: retrieval.rows,
+      stats: retrieval.stats,
+      detailsOpen: false,
+    })
+
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const placeholderId = push('assistant', { content: '' })
       generatingId.value = placeholderId
 
       let streamed = ''
       const response = await generate(
-        [{ role: 'system', content: SYSTEM_PROMPT }, ...modelMessages.value],
-        TOOL_SCHEMAS,
+        [{ role: 'system', content: buildSystemPrompt(selectedNames) }, ...modelMessages.value],
+        toolSchemas,
         (token: string) => {
           streamed += token
           const current = messages.value.find((message) => message.id === placeholderId)
@@ -256,6 +302,7 @@ function clearChat(): void {
   messages.value = []
   modelMessages.value = []
   dispose()
+  disposeNeural()
   pickSuggestions()
 }
 </script>
@@ -392,6 +439,65 @@ function clearChat(): void {
               </button>
             </template>
           </div>
+          <div v-else-if="message.role === 'retrieval'" class="pixel-msg pixel-msg--retrieval">
+            <button
+              type="button"
+              class="pixel-msg--retrieval__summary"
+              :aria-expanded="message.detailsOpen"
+              :aria-controls="'retrieval-details-' + message.id"
+              @click="message.detailsOpen = !message.detailsOpen"
+            >
+              <span class="pixel-msg--retrieval__label">retrieved</span>
+              <span class="pixel-msg--retrieval__count">
+                {{ message.selectedNames.length }}/{{ message.stats.total }}
+              </span>
+              <span class="pixel-msg--retrieval__names">
+                {{ message.selectedNames.join(', ') }}
+              </span>
+              <span class="pixel-msg--retrieval__meta">
+                {{
+                  message.stats.mode === message.stats.effective
+                    ? message.stats.mode
+                    : message.stats.effective + ' (fallback)'
+                }}
+                · {{ message.stats.latencyMs }}ms
+              </span>
+              <span class="pixel-msg--retrieval__toggle" aria-hidden="true">
+                {{ message.detailsOpen ? '−' : '+' }}
+              </span>
+            </button>
+
+            <transition name="fade">
+              <div
+                v-if="message.detailsOpen"
+                :id="'retrieval-details-' + message.id"
+                class="pixel-msg--retrieval__details"
+              >
+                <ol class="tool-selector__list">
+                  <li
+                    v-for="row in message.rows"
+                    :key="row.name"
+                    class="tool-result"
+                    :class="{ 'tool-result--selected': row.selected }"
+                  >
+                    <span class="tool-result__rank">{{ row.rank + 1 }}</span>
+                    <span class="tool-result__name">{{ row.name }}</span>
+                    <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
+                    <span class="tool-result__bar" aria-hidden="true">
+                      <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
+                    </span>
+                    <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
+                    <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+                  </li>
+                </ol>
+                <p class="tool-selector__stats">
+                  {{ message.stats.total }} tools · top {{ message.stats.selected }} selected · ~{{
+                    prunedPercent(message.stats)
+                  }}% of schemas pruned
+                </p>
+              </div>
+            </transition>
+          </div>
           <div v-else-if="message.role === 'error'" class="pixel-msg pixel-msg--error">
             {{ message.content }}
           </div>
@@ -451,6 +557,8 @@ function clearChat(): void {
           Send
         </button>
       </form>
+
+      <ToolSelectorPanel />
     </div>
   </div>
 </template>

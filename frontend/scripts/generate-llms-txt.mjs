@@ -55,9 +55,34 @@ const contactMd = `# Contact
 - [GitHub](https://github.com/Meteord): Michael Jaumann's GitHub profile.
 `
 
+const techMd = `# How this site works
+
+This page has no backend: everything runs on-device in the visitor's browser via transformers.js. Mini-Michi, the chat assistant, retrieves the most relevant tools before every reply and only sends those schemas to the language model.
+
+## Chat model
+
+Mini-Michi runs LiquidAI's LFM2.5-350M-ONNX causal language model, streamed over WebGPU or WebAssembly. No data leaves the page.
+
+- [LFM2.5-350M-ONNX](https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX)
+
+## Tool retriever
+
+Before every reply, a retrieval step ranks the site's tools and pre-selects only the most relevant schemas for the model. The neural mode uses the LFM2.5 Encoder (kucukkanat ONNX export, q8) with cosine similarity; a BM25 lexical retriever acts as an instant fallback.
+
+- [LFM2.5-Encoder-350M-ONNX](https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-ONNX)
+
+## Concept
+
+The tool-selector approach is inspired by LiquidAI's ColBERT tool-selection demo, which retrieves the top-5 most relevant tools out of 151 instead of stuffing every schema into the context window.
+
+- [ColBERT tool-selection demo](https://huggingface.co/spaces/LiquidAI/colbert-tool-selection)
+- [LFM2.5 retrievers blog](https://www.liquid.ai/blog/lfm2-5-retrievers)
+`
+
 writeFileSync(join(llmsDir, 'about.md'), aboutMd)
 writeFileSync(join(llmsDir, 'projects.md'), projectsMd)
 writeFileSync(join(llmsDir, 'contact.md'), contactMd)
+writeFileSync(join(llmsDir, 'tech.md'), techMd)
 
 const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 
@@ -68,6 +93,7 @@ const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 - [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies.
 - [Projects](llms/projects.md): MUCGPT, Munich's open-source AI chatbot for citizens.
 - [Contact](llms/contact.md): LinkedIn and GitHub profiles.
+- [How it works](llms/tech.md): The on-device models powering this page — the chat model and the tool retriever.
 - [GitHub](https://github.com/Meteord): Michael Jaumann's GitHub profile.
 - [LinkedIn](https://www.linkedin.com/in/michael-jaumann-a4736a263/): Michael Jaumann's LinkedIn profile.
 - [KIES](https://ki.muenchen.de/ki-team): The team Michael works for in Munich.

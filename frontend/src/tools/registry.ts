@@ -31,7 +31,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           topic: {
             type: 'string',
             description: `Which topic to retrieve: ${aboutTopicDescription()}`,
-            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'all'],
+            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'tech', 'all'],
           },
         },
       },
@@ -42,15 +42,15 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     function: {
       name: 'about_site',
       description:
-        'Retrieve the site-wide narrative content about Michael Jaumann from the llms.txt files. Richer than about_me, covering bio, education, skills, hobbies, projects (MUCGPT) and contact links. Prefer this for detailed answers.',
+        'Retrieve the site-wide narrative content about Michael Jaumann from the llms.txt files. Richer than about_me, covering bio, education, skills, hobbies, projects (MUCGPT), contact links and how this site works. Prefer this for detailed answers.',
       parameters: {
         type: 'object',
         properties: {
           topic: {
             type: 'string',
             description:
-              'Which topic to focus on: bio, education, skills, hobbies, projects, contact, or all.',
-            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'all'],
+              'Which topic to focus on: bio, education, skills, hobbies, projects, contact, tech, or all.',
+            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'tech', 'all'],
           },
         },
       },
@@ -68,7 +68,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to jump to.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
         },
       },
@@ -86,7 +86,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to expand.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
         },
       },
@@ -104,7 +104,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to collapse.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
         },
       },
@@ -122,7 +122,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to move.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
           direction: {
             type: 'string',
@@ -145,7 +145,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to reposition.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
           position: {
             type: 'string',
@@ -185,7 +185,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to hide.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
         },
       },
@@ -203,7 +203,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           target: {
             type: 'string',
             description: 'Which section to show again.',
-            enum: ['about', 'projects', 'contact'],
+            enum: ['about', 'projects', 'contact', 'tech'],
           },
         },
       },
@@ -256,7 +256,32 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
 /* System prompt                                                       */
 /* ------------------------------------------------------------------ */
 
-export const SYSTEM_PROMPT = `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
+export const ALL_TOOL_NAMES: string[] = TOOL_SCHEMAS.map((tool) => tool.function.name)
+
+const TOOL_GUIDE: Record<string, string> = {
+  about_site:
+    'about_site(topic="all") — retrieve the rich narrative content about Michael from the site\u2019s llms.txt files (bio, education, skills, hobbies, projects like MUCGPT, contact, how the site works). Prefer this for detailed or broad answers.',
+  about_me:
+    'about_me(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"tech"|"all") — retrieve structured info about Michael as a fallback.',
+  jump_to_section:
+    'jump_to_section(target="about"|"projects"|"contact"|"tech") — expand, scroll to and highlight a section.',
+  expand_section: 'expand_section(target="...") — expand a collapsed section.',
+  collapse_section: 'collapse_section(target="...") — collapse a section.',
+  move_section:
+    'move_section(target="...", direction="up"|"down") — move a section one step up or down the page.',
+  translate_section:
+    'translate_section(target="...", position="top"|"bottom"|number) — move a section straight to the top, bottom or a numbered spot.',
+  rotate_sections: 'rotate_sections(direction="next"|"prev") — cycle the whole section stack.',
+  hide_section: 'hide_section(target="...") — remove a section from the page.',
+  show_section: 'show_section(target="...") — bring a hidden section back.',
+  set_theme: 'set_theme(theme="amber"|"orange"|"red") — switch the accent color theme.',
+  toggle_scanlines: 'toggle_scanlines() — toggle the CRT scanline overlay.',
+  reset_layout: 'reset_layout() — restore the default page layout.',
+}
+
+export function buildSystemPrompt(selectedNames: string[] = ALL_TOOL_NAMES): string {
+  const tools = selectedNames.map((name) => `  - ${TOOL_GUIDE[name] ?? name}`).join('\n')
+  return `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
 
 Rules:
 - Prefer calling a tool over guessing. Never invent facts about Michael — use the about_site tool (preferred) or about_me tool.
@@ -266,19 +291,8 @@ Rules:
 - Call only ONE tool per turn. Wait for its result, then answer the visitor naturally.
 - Keep answers short, friendly and concise. You can use the visitor's language.
 - Tools you can call (ONE per turn):
-  - about_site(topic="all") — retrieve the rich narrative content about Michael from the site's llms.txt files (bio, education, skills, hobbies, projects like MUCGPT, contact). Prefer this for detailed or broad answers.
-  - about_me(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"all") — retrieve structured info about Michael as a fallback.
-  - jump_to_section(target="about"|"projects"|"contact") — expand, scroll to and highlight a section.
-  - expand_section(target="...") — expand a collapsed section.
-  - collapse_section(target="...") — collapse a section.
-  - move_section(target="...", direction="up"|"down") — move a section one step up or down the page.
-  - translate_section(target="...", position="top"|"bottom"|number) — move a section straight to the top, bottom or a numbered spot.
-  - rotate_sections(direction="next"|"prev") — cycle the whole section stack.
-  - hide_section(target="...") — remove a section from the page.
-  - show_section(target="...") — bring a hidden section back.
-  - set_theme(theme="amber"|"orange"|"red") — switch the accent color theme.
-  - toggle_scanlines() — toggle the CRT scanline overlay.
-  - reset_layout() — restore the default page layout.`
+${tools}`
+}
 
 /* ------------------------------------------------------------------ */
 /* Tool-call parsing (ported from Liquid AI's LFM2-WebGPU demo)        */
@@ -447,6 +461,7 @@ const TOPIC_SECTION: Record<string, SectionId> = {
   hobbies: 'about',
   projects: 'projects',
   contact: 'contact',
+  tech: 'tech',
 }
 
 function sectionForTopic(topic: AboutTopic): SectionId {
@@ -587,4 +602,39 @@ export function toolCallSummary(calls: string[]): string[] {
     const parsed = parsePythonicCalls(call)
     return parsed ? parsed.name : call
   })
+}
+
+/* ------------------------------------------------------------------ */
+/* Retrieval index (tool documents for the tool selector)              */
+/* ------------------------------------------------------------------ */
+
+export interface ToolDoc {
+  name: string
+  text: string
+}
+
+function toolDocText(schema: ToolSchema): string {
+  const { name, description, parameters } = schema.function
+  const params = Object.entries(parameters.properties)
+    .map(([key, value]) => `${key} ${value.description ?? ''}`)
+    .join(' ')
+  const enums = Object.values(parameters.properties)
+    .flatMap((value) => value.enum ?? [])
+    .join(' ')
+  return `${name}. ${description} ${params} ${enums}`
+}
+
+export function getToolDocs(): ToolDoc[] {
+  return TOOL_SCHEMAS.map((schema) => ({
+    name: schema.function.name,
+    text: toolDocText(schema),
+  }))
+}
+
+export function pruneSchemas(names: string[]): ToolSchema[] {
+  return TOOL_SCHEMAS.filter((tool) => names.includes(tool.function.name))
+}
+
+export function schemaChars(schemas: ToolSchema[]): number {
+  return schemas.reduce((total, schema) => total + JSON.stringify(schema).length, 0)
 }

@@ -5,6 +5,7 @@ import { useSiteLayout, type SectionId } from './composables/useSiteLayout'
 import AboutSection from './components/AboutSection.vue'
 import ProjectsSection from './components/ProjectsSection.vue'
 import ContactSection from './components/ContactSection.vue'
+import TechSection from './components/TechSection.vue'
 import AiSection from './components/AiSection.vue'
 
 const { visibleSections } = useSiteLayout()
@@ -13,6 +14,7 @@ const components: Record<SectionId, Component> = {
   about: AboutSection,
   projects: ProjectsSection,
   contact: ContactSection,
+  tech: TechSection,
 }
 
 const shown = computed(() => visibleSections())

@@ -17,6 +17,13 @@ export interface Project {
   techStack: { label: string; items: string[] }[]
 }
 
+export interface TechModel {
+  name: string
+  description: string
+  link: string
+  tags: string[]
+}
+
 export interface ContactLinks {
   linkedin: string
   github: string
@@ -77,13 +84,44 @@ export const siteData = {
       ],
     },
   ] as Project[],
+  tech: [
+    {
+      name: 'Chat model — LFM2.5-350M',
+      description:
+        'Mini-Michi, the on-device assistant, runs LiquidAI\u2019s LFM2.5-350M-ONNX causal language model entirely in the browser via transformers.js, streamed over WebGPU or WebAssembly. No data leaves the page.',
+      link: 'https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX',
+      tags: ['LFM2.5-350M', 'transformers.js', 'WebGPU', 'WASM'],
+    },
+    {
+      name: 'Tool retriever — LFM2.5 Encoder',
+      description:
+        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. Neural mode uses the LFM2.5 Encoder (kucukkanat ONNX export, q8) with cosine similarity; a BM25 lexical retriever acts as an instant fallback.',
+      link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-ONNX',
+      tags: ['LFM2.5-Encoder-350M', 'q8', 'BM25', 'cosine'],
+    },
+    {
+      name: 'Inspiration — ColBERT tool selection',
+      description:
+        'The tool-selector concept comes from LiquidAI\u2019s demo, which retrieves the top-5 most relevant tools out of 151 with a retriever instead of stuffing every schema into the context window.',
+      link: 'https://huggingface.co/spaces/LiquidAI/colbert-tool-selection',
+      tags: ['ColBERT', 'tool retrieval', 'LiquidAI demo'],
+    },
+  ] as TechModel[],
   contact: {
     linkedin: 'https://www.linkedin.com/in/michael-jaumann-a4736a263/',
     github: 'https://github.com/Meteord',
   } as ContactLinks,
 }
 
-export type AboutTopic = 'bio' | 'education' | 'skills' | 'hobbies' | 'projects' | 'contact' | 'all'
+export type AboutTopic =
+  | 'bio'
+  | 'education'
+  | 'skills'
+  | 'hobbies'
+  | 'projects'
+  | 'contact'
+  | 'tech'
+  | 'all'
 
 const TOPICS: Record<AboutTopic, string> = {
   bio: 'name, location, employer and personal tags',
@@ -92,6 +130,7 @@ const TOPICS: Record<AboutTopic, string> = {
   hobbies: 'personal hobbies',
   projects: 'open source projects he works on',
   contact: 'social and professional links',
+  tech: 'how this website works and which models power it',
   all: 'all available information about Michael',
 }
 
@@ -168,6 +207,19 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
         `- LinkedIn: ${siteData.contact.linkedin}`,
         `- GitHub: ${siteData.contact.github}`,
       ].join('\n'),
+    )
+  }
+
+  if (wants('tech')) {
+    blocks.push(
+      ['## How this site works']
+        .concat(
+          siteData.tech.map(
+            (model) =>
+              `- ${model.name}: ${model.description} Link: ${model.link}. Tags: ${model.tags.join(', ')}`,
+          ),
+        )
+        .join('\n'),
     )
   }
 

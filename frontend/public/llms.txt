@@ -7,6 +7,7 @@
 - [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies.
 - [Projects](llms/projects.md): MUCGPT, Munich's open-source AI chatbot for citizens.
 - [Contact](llms/contact.md): LinkedIn and GitHub profiles.
+- [How it works](llms/tech.md): The on-device models powering this page — the chat model and the tool retriever.
 - [GitHub](https://github.com/Meteord): Michael Jaumann's GitHub profile.
 - [LinkedIn](https://www.linkedin.com/in/michael-jaumann-a4736a263/): Michael Jaumann's LinkedIn profile.
 - [KIES](https://ki.muenchen.de/ki-team): The team Michael works for in Munich.

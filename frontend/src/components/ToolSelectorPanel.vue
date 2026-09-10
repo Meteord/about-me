@@ -1,0 +1,245 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
+import { TOOL_SCHEMAS } from '../tools/registry'
+
+const { mode, topK, lastQuery, lastResult, neural, retrieve, loadNeural } = useToolRetrieval()
+
+const MODES: RetrievalMode[] = ['lexical', 'neural', 'hybrid']
+const MODE_LABEL: Record<RetrievalMode, string> = {
+  lexical: 'LEX',
+  neural: 'NEUR',
+  hybrid: 'HYBRID',
+}
+
+const SAMPLES = [
+  'Move contact to the top',
+  'Tell me about MUCGPT',
+  'Switch the theme to red',
+  'Toggle the scanlines',
+  'What education does Michael have?',
+]
+
+const TOTAL = TOOL_SCHEMAS.length
+const DESCRIPTION = new Map(
+  TOOL_SCHEMAS.map((tool) => [tool.function.name, tool.function.description]),
+)
+
+const query = ref('')
+const busy = ref(false)
+const expanded = ref(false)
+const error = ref<string | null>(null)
+
+const toolDescription = (name: string): string => DESCRIPTION.get(name) ?? ''
+
+async function runRetrieve(raw?: string): Promise<void> {
+  const text = (raw ?? query.value).trim()
+  if (!text || busy.value) return
+  query.value = text
+  busy.value = true
+  error.value = null
+  try {
+    await retrieve(text)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+function onSample(sample: string): void {
+  void runRetrieve(sample)
+}
+
+function setMode(next: RetrievalMode): void {
+  mode.value = next
+  if (next === 'neural' || next === 'hybrid') {
+    if (neural.value.status !== 'ready' && neural.value.status !== 'loading') {
+      void loadNeural()
+    }
+  }
+}
+
+function bumpTopK(delta: number): void {
+  topK.value = Math.min(TOTAL, Math.max(1, topK.value + delta))
+}
+
+watch([mode, topK], () => {
+  if (lastQuery.value) void runRetrieve(lastQuery.value)
+})
+
+watch(lastQuery, (queryText) => {
+  query.value = queryText
+})
+
+watch(
+  () => neural.value.status,
+  (status) => {
+    if (
+      status === 'ready' &&
+      lastQuery.value &&
+      (mode.value === 'neural' || mode.value === 'hybrid')
+    ) {
+      void runRetrieve(lastQuery.value)
+    }
+  },
+)
+
+const prunedPercent = computed(() => {
+  if (!lastResult.value || !lastResult.value.stats.totalChars) return 0
+  const { totalChars, prunedChars } = lastResult.value.stats
+  return Math.round((prunedChars / totalChars) * 100)
+})
+</script>
+
+<template>
+  <div class="tool-selector">
+    <button
+      type="button"
+      class="tool-selector__bar"
+      :aria-expanded="expanded"
+      aria-controls="tool-selector-content"
+      @click="expanded = !expanded"
+    >
+      <span class="tool-selector__heading">
+        <span class="tool-selector__title">Tool Selector</span>
+        <span class="tool-selector__tagline">picks the top tools for each request</span>
+      </span>
+      <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="pixel-window__toggle">{{ expanded ? '−' : '+' }}</span>
+    </button>
+
+    <transition name="fade">
+      <div v-if="expanded" id="tool-selector-content" class="tool-selector__content">
+        <p class="tool-selector__intro">
+          Retrieves up to the top-{{ topK }} tools for a request — like LiquidAI's ColBERT
+          tool-selection demo — so Mini-Michi only sees the schemas it actually needs.
+        </p>
+
+        <div class="tool-selector__controls">
+          <form class="tool-selector__form" @submit.prevent="runRetrieve()">
+            <input
+              v-model="query"
+              class="pixel-chat__field tool-selector__field"
+              type="text"
+              autocomplete="off"
+              :disabled="busy"
+              placeholder="e.g. Move contact to the top…"
+              aria-label="Retrieval query"
+            />
+            <button
+              class="pixel-link-btn tool-selector__go"
+              type="submit"
+              :disabled="busy || !query.trim()"
+            >
+              {{ busy ? '…' : 'Retrieve' }}
+            </button>
+          </form>
+
+          <div class="tool-selector__row">
+            <div class="tool-selector__chips" role="group" aria-label="Retriever mode">
+              <button
+                v-for="m in MODES"
+                :key="m"
+                type="button"
+                class="pixel-chip tool-selector__chip"
+                :class="{ 'tool-selector__chip--active': mode === m }"
+                @click="setMode(m)"
+              >
+                {{ MODE_LABEL[m] }}
+              </button>
+            </div>
+
+            <div class="tool-selector__topk">
+              <button
+                type="button"
+                class="tool-selector__step"
+                aria-label="Retrieve fewer tools"
+                :disabled="busy"
+                @click="bumpTopK(-1)"
+              >
+                −
+              </button>
+              <span class="tool-selector__topk-value">top {{ topK }}</span>
+              <button
+                type="button"
+                class="tool-selector__step"
+                aria-label="Retrieve more tools"
+                :disabled="busy"
+                @click="bumpTopK(1)"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="neural.status === 'loading'" class="tool-selector__load">
+          <div
+            class="ai-progress tool-selector__progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="neural.progress"
+          >
+            <span class="ai-progress__bar" :style="{ width: neural.progress + '%' }"></span>
+          </div>
+          <span v-if="neural.file" class="ai-status__file">{{ neural.file }}</span>
+        </div>
+
+        <p v-if="neural.status === 'error'" class="tool-selector__error">
+          Encoder failed to load — falling back to lexical scores.
+          <button type="button" class="tool-selector__retry" @click="loadNeural">Retry</button>
+        </p>
+
+        <div v-if="lastResult" class="tool-selector__results">
+          <ol class="tool-selector__list">
+            <li
+              v-for="row in lastResult.rows"
+              :key="row.name"
+              class="tool-result"
+              :class="{ 'tool-result--selected': row.selected }"
+            >
+              <span class="tool-result__rank">{{ row.rank + 1 }}</span>
+              <span class="tool-result__name">{{ row.name }}</span>
+              <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
+              <span class="tool-result__bar" aria-hidden="true">
+                <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
+              </span>
+              <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
+              <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+            </li>
+          </ol>
+
+          <p class="tool-selector__stats">
+            {{ lastResult.stats.total }} tools · top {{ lastResult.stats.selected }} selected ·
+            {{
+              lastResult.stats.effective === lastResult.stats.mode
+                ? lastResult.stats.mode
+                : lastResult.stats.effective + ' (fallback)'
+            }}
+            · ~{{ prunedPercent }}% of schemas pruned · {{ lastResult.stats.latencyMs }}ms
+          </p>
+        </div>
+
+        <div v-else class="tool-selector__empty">
+          <p class="pixel-chat__hint">
+            Type a request to see which tools get pre-selected for the chat model.
+          </p>
+          <div class="pixel-tags tool-selector__samples">
+            <button
+              v-for="sample in SAMPLES"
+              :key="sample"
+              type="button"
+              class="pixel-chip pixel-chat__example"
+              :disabled="busy"
+              @click="onSample(sample)"
+            >
+              {{ sample }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </div>
+</template>

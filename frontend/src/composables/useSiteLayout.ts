@@ -1,6 +1,6 @@
 import { nextTick, reactive } from 'vue'
 
-export type SectionId = 'about' | 'projects' | 'contact'
+export type SectionId = 'about' | 'projects' | 'contact' | 'tech'
 export type ThemeName = 'amber' | 'orange' | 'red'
 
 export interface SectionState {
@@ -13,6 +13,7 @@ export const DEFAULT_SECTIONS: SectionState[] = [
   { id: 'about', expanded: true, visible: true },
   { id: 'projects', expanded: false, visible: true },
   { id: 'contact', expanded: false, visible: true },
+  { id: 'tech', expanded: false, visible: true },
 ]
 
 export interface SiteLayout {
