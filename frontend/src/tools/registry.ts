@@ -59,34 +59,16 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   {
     type: 'function',
     function: {
-      name: 'start_game',
-      description:
-        'Start a mini game rendered inside the chat. Currently only a Snake game exists.',
-      parameters: {
-        type: 'object',
-        properties: {
-          game: {
-            type: 'string',
-            description: 'Which game to start. Only "snake" is available.',
-            enum: ['snake'],
-          },
-        },
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'restructure_site',
       description:
-        'Restructure or restyle the website: move a section up or down, expand or collapse a section window, switch the accent color theme, or toggle the CRT scanline effect.',
+        'Restructure or restyle the website: jump to a section, move a section up or down, expand or collapse a section window, switch the accent color theme, or toggle the CRT scanline effect.',
       parameters: {
         type: 'object',
         properties: {
           action: {
             type: 'string',
             description: 'What to do.',
-            enum: ['move', 'expand', 'collapse', 'theme', 'scanlines'],
+            enum: ['jump_to', 'move', 'expand', 'collapse', 'theme', 'scanlines'],
           },
           target: {
             type: 'string',
@@ -113,7 +95,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
 /* System prompt                                                       */
 /* ------------------------------------------------------------------ */
 
-export const SYSTEM_PROMPT = `You are MICRO-MIKE, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
+export const SYSTEM_PROMPT = `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
 
 Rules:
 - Prefer calling a tool over guessing. Never invent facts about Michael — use the about_site tool (preferred) or about_me tool.
@@ -125,8 +107,7 @@ Rules:
 - Tools you can call:
   - about_site(topic="all") — retrieve the rich narrative content about Michael from the site's llms.txt files (bio, education, skills, hobbies, projects like MUCGPT, contact). Prefer this for detailed or broad answers.
   - about_me(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"all") — retrieve structured info about Michael as a fallback.
-  - start_game(game="snake") — start the Snake mini-game inside the chat.
-  - restructure_site(action="move"|"expand"|"collapse"|"theme"|"scanlines", target="about"|"projects"|"contact", direction="up"|"down", theme="amber"|"orange"|"red") — rearrange or restyle the website.`
+  - restructure_site(action="jump_to"|"move"|"expand"|"collapse"|"theme"|"scanlines", target="about"|"projects"|"contact", direction="up"|"down", theme="amber"|"orange"|"red") — jump to, rearrange or restyle the website.`
 
 /* ------------------------------------------------------------------ */
 /* Tool-call parsing (ported from Liquid AI's LFM2-WebGPU demo)        */
@@ -253,17 +234,25 @@ export interface ToolResult {
   call: string
   result?: unknown
   error?: string
+  kind: ToolResultKind
+}
+
+export type ToolResultKind = 'text' | 'contact' | 'layout'
+
+export interface ContactInfo {
+  linkedin: string
+  github: string
 }
 
 export async function executeToolCall(call: string): Promise<ToolResult> {
   const parsed = parsePythonicCalls(call)
   if (!parsed) {
-    return { call, error: `Invalid tool call format: ${call}` }
+    return { call, error: `Invalid tool call format: ${call}`, kind: 'text' }
   }
 
   const schema = TOOL_SCHEMAS.find((tool) => tool.function.name === parsed.name)
   if (!schema) {
-    return { call, error: `Unknown tool: ${parsed.name}` }
+    return { call, error: `Unknown tool: ${parsed.name}`, kind: 'text' }
   }
 
   const args = mapArgsToNamedParams(
@@ -274,66 +263,86 @@ export async function executeToolCall(call: string): Promise<ToolResult> {
 
   try {
     const result = await executors[parsed.name](args)
-    return { call, result }
+    return { call, result, kind: (result as { kind?: ToolResultKind })?.kind ?? 'text' }
   } catch (error) {
-    return { call, error: error instanceof Error ? error.message : String(error) }
+    return { call, error: error instanceof Error ? error.message : String(error), kind: 'text' }
   }
+}
+
+const TOPIC_SECTION: Record<string, SectionId> = {
+  bio: 'about',
+  education: 'about',
+  skills: 'about',
+  hobbies: 'about',
+  projects: 'projects',
+  contact: 'contact',
+}
+
+function sectionForTopic(topic: AboutTopic): SectionId {
+  return TOPIC_SECTION[topic] ?? 'about'
 }
 
 const executors: Record<string, (args: Record<string, unknown>) => unknown | Promise<unknown>> = {
   about_me: (args) => {
     const topic = (args.topic as AboutTopic) ?? 'all'
-    return aboutMeMarkdown(topic)
-  },
-
-  about_site: async () => {
-    return getSiteContent()
-  },
-
-  start_game: (args) => {
-    const game = (args.game as string) ?? 'snake'
-    if (game !== 'snake') {
-      return { error: `Unknown game "${game}". Only "snake" is supported.` }
-    }
     return {
-      game: 'snake',
-      started: true,
-      message: 'Snake loaded. Move with arrow keys or the on-screen pad. Good luck!',
+      kind: topic === 'contact' ? 'contact' : 'text',
+      section: sectionForTopic(topic),
+      topic,
+      text: aboutMeMarkdown(topic),
+    }
+  },
+
+  about_site: async (args) => {
+    const topic = (args.topic as AboutTopic) ?? 'all'
+    const content = await getSiteContent()
+    return {
+      kind: topic === 'contact' ? 'contact' : 'text',
+      section: sectionForTopic(topic),
+      topic,
+      text: content,
     }
   },
 
   restructure_site: (args) => {
-    const { setExpanded, moveSection, setTheme, toggleScanlines } = useSiteLayout()
+    const { setExpanded, moveSection, setTheme, toggleScanlines, focusSection } = useSiteLayout()
     const action = (args.action as string) ?? ''
     const target = args.target as SectionId
     const direction = args.direction as 'up' | 'down'
     const theme = args.theme as ThemeName
 
     switch (action) {
+      case 'jump_to':
+        if (!target) return { kind: 'text', error: 'jump_to requires "target".' }
+        focusSection(target)
+        return { kind: 'layout', section: target, jumped: target }
       case 'move':
         if (!target || !direction) {
-          return { error: 'move requires both "target" and "direction".' }
+          return { kind: 'text', error: 'move requires both "target" and "direction".' }
         }
         return moveSection(target, direction)
-          ? { moved: `${target} ${direction}` }
-          : { error: `Could not move "${target}" ${direction} — it may already be at the edge.` }
+          ? { kind: 'layout', moved: `${target} ${direction}` }
+          : {
+              kind: 'text',
+              error: `Could not move "${target}" ${direction} — it may already be at the edge.`,
+            }
       case 'expand':
-        if (!target) return { error: 'expand requires "target".' }
+        if (!target) return { kind: 'text', error: 'expand requires "target".' }
         setExpanded(target, true)
-        return { expanded: target }
+        return { kind: 'layout', expanded: target }
       case 'collapse':
-        if (!target) return { error: 'collapse requires "target".' }
+        if (!target) return { kind: 'text', error: 'collapse requires "target".' }
         setExpanded(target, false)
-        return { collapsed: target }
+        return { kind: 'layout', collapsed: target }
       case 'theme':
-        if (!theme) return { error: 'theme requires "theme" (amber, orange or red).' }
+        if (!theme) return { kind: 'text', error: 'theme requires "theme" (amber, orange or red).' }
         setTheme(theme)
-        return { theme }
+        return { kind: 'layout', theme }
       case 'scanlines':
         toggleScanlines()
-        return { scanlines_toggled: true }
+        return { kind: 'layout', scanlines_toggled: true }
       default:
-        return { error: `Unknown action "${action}".` }
+        return { kind: 'text', error: `Unknown action "${action}".` }
     }
   },
 }

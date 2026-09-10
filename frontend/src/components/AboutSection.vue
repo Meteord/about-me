@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
-import AiSection from './AiSection.vue'
 
-const { isExpanded, toggle } = useSiteLayout()
+const { state, isExpanded, toggle } = useSiteLayout()
 
 const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red']
 </script>
 
 <template>
-  <section id="about" class="pixel-window fade-in-section">
+  <section
+    id="about"
+    class="pixel-window fade-in-section"
+    :class="{ 'pixel-window--highlight': state.highlight === 'about' }"
+  >
     <button
       @click="toggle('about')"
       class="pixel-window__bar"
@@ -45,7 +48,6 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
             >{{ tag }}</span
           >
         </div>
-        <AiSection />
         <div class="pixel-card">
           <h2 class="pixel-section-title">Education</h2>
           <ul class="pixel-list">

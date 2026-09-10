@@ -2,11 +2,15 @@
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
 
-const { isExpanded, toggle } = useSiteLayout()
+const { state, isExpanded, toggle } = useSiteLayout()
 </script>
 
 <template>
-  <section id="contact" class="pixel-window fade-in-section">
+  <section
+    id="contact"
+    class="pixel-window fade-in-section"
+    :class="{ 'pixel-window--highlight': state.highlight === 'contact' }"
+  >
     <button
       @click="toggle('contact')"
       class="pixel-window__bar"

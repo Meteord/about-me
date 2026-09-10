@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { nextTick, reactive } from 'vue'
 
 export type SectionId = 'about' | 'projects' | 'contact'
 export type ThemeName = 'amber' | 'orange' | 'red'
@@ -12,6 +12,7 @@ export interface SiteLayout {
   sections: SectionState[]
   theme: ThemeName
   scanlines: boolean
+  highlight: SectionId | null
 }
 
 const state = reactive<SiteLayout>({
@@ -22,6 +23,7 @@ const state = reactive<SiteLayout>({
   ],
   theme: 'amber',
   scanlines: true,
+  highlight: null,
 })
 
 function syncDocument(): void {
@@ -82,6 +84,32 @@ export function useSiteLayout() {
     syncDocument()
   }
 
+  const reducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const focusSection = (id: SectionId, collapseOthers = true): void => {
+    if (collapseOthers) {
+      state.sections.forEach((section) => {
+        section.expanded = section.id === id
+      })
+    } else {
+      const index = findIndex(id)
+      if (index !== -1) state.sections[index].expanded = true
+    }
+
+    state.highlight = id
+    nextTick(() => {
+      document.getElementById(id)?.scrollIntoView({
+        behavior: reducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      })
+    })
+
+    window.setTimeout(() => {
+      state.highlight = null
+    }, 700)
+  }
+
   syncDocument()
 
   return {
@@ -94,5 +122,6 @@ export function useSiteLayout() {
     setTheme,
     cycleTheme,
     toggleScanlines,
+    focusSection,
   }
 }
