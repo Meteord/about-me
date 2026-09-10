@@ -138,6 +138,47 @@ body.crt-off::after {
   gap: 2.5rem;
 }
 
+.app-column--empty {
+  min-height: 16rem;
+  justify-content: center;
+  text-align: center;
+  border: 2px dashed var(--pixel-border);
+  clip-path: polygon(
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    0 calc(100% - 8px),
+    0 8px
+  );
+}
+
+/* Section stack reorder/hide animations (used by the transition-group in App.vue) */
+.stack-enter-active,
+.stack-leave-active,
+.stack-move {
+  transition:
+    opacity 180ms steps(2, end),
+    transform 180ms steps(2, end);
+}
+
+.stack-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.stack-leave-to {
+  opacity: 0;
+}
+
+.stack-leave-active {
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* Pixel-corner window                                                 */
 /* ------------------------------------------------------------------ */
@@ -1169,6 +1210,11 @@ body.crt-off::after {
 .pixel-chat__example:focus-visible {
   outline: 2px solid var(--pixel-accent);
   outline-offset: 2px;
+}
+
+.pixel-chat__shuffle {
+  font-size: 0.8125rem;
+  padding: 0.2rem 0.625rem;
 }
 
 .pixel-chat__input {

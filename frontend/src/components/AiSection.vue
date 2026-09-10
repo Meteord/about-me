@@ -39,7 +39,9 @@ const EXAMPLES = [
   'Tell me about Michael\u2019s education',
   'What projects has Michael worked on?',
   'How can I contact Michael?',
-  'Move the contact section to the top',
+  'Move contact to the top',
+  'Rotate the sections',
+  'Hide the projects section',
   'Switch the theme to red',
 ]
 
@@ -48,6 +50,20 @@ const SECTION_LABEL: Record<SectionId, string> = {
   projects: 'Projects',
   contact: 'Contact',
 }
+
+const suggestions = ref<string[]>([])
+
+function pickSuggestions(count = 2): void {
+  const pool = [...EXAMPLES]
+  const picked: string[] = []
+  for (let i = 0; i < count && pool.length; i++) {
+    const index = Math.floor(Math.random() * pool.length)
+    picked.push(pool.splice(index, 1)[0])
+  }
+  suggestions.value = picked
+}
+
+pickSuggestions()
 
 function push(role: ChatMessage['role'], extra: Partial<ChatMessage> = {}): number {
   const id = nextId++
@@ -83,10 +99,6 @@ function resultSection(results: ToolResult[]): SectionId | null {
 
 function isContactResult(results: ToolResult[]): boolean {
   return results.some((result) => result.kind === 'contact')
-}
-
-function isLayoutResult(results: ToolResult[]): boolean {
-  return results.some((result) => result.kind === 'layout')
 }
 
 function jumpTo(results: ToolResult[]): void {
@@ -235,6 +247,7 @@ async function handleSend(raw?: string): Promise<void> {
   } finally {
     isGenerating.value = false
     generatingId.value = null
+    pickSuggestions()
     nextTick(() => inputEl.value?.focus())
   }
 }
@@ -243,6 +256,7 @@ function clearChat(): void {
   messages.value = []
   modelMessages.value = []
   dispose()
+  pickSuggestions()
 }
 </script>
 
@@ -367,9 +381,7 @@ function clearChat(): void {
               <p v-if="toolNote(message.results)" class="pixel-msg__text">
                 {{ toolNote(message.results) }}
               </p>
-              <p v-if="!isLayoutResult(message.results)" class="pixel-msg__dim">
-                {{ summarizeResults(message.results) }}
-              </p>
+              <p class="pixel-msg__dim">{{ summarizeResults(message.results) }}</p>
               <button
                 v-if="resultSection(message.results)"
                 class="pixel-link-btn pixel-msg__jump"
@@ -395,11 +407,11 @@ function clearChat(): void {
                   ? 'WebAssembly'
                   : 'WebGPU or WebAssembly'
             }}. I can look up Michael's info from the site, jump straight to the relevant section,
-            and restructure this page.
+            and rearrange this page — move, rotate, hide or restyle sections.
           </p>
           <div class="pixel-tags pixel-chat__examples">
             <button
-              v-for="example in EXAMPLES"
+              v-for="example in suggestions"
               :key="example"
               class="pixel-chip pixel-chat__example"
               type="button"
@@ -407,6 +419,14 @@ function clearChat(): void {
               @click="handleSend(example)"
             >
               {{ example }}
+            </button>
+            <button
+              class="pixel-link-btn pixel-chat__shuffle"
+              type="button"
+              :disabled="isGenerating || state.status !== 'ready'"
+              @click="pickSuggestions()"
+            >
+              Shuffle
             </button>
           </div>
         </div>

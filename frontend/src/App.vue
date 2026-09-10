@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
+import { computed } from 'vue'
 import { useSiteLayout, type SectionId } from './composables/useSiteLayout'
 import AboutSection from './components/AboutSection.vue'
 import ProjectsSection from './components/ProjectsSection.vue'
 import ContactSection from './components/ContactSection.vue'
 import AiSection from './components/AiSection.vue'
 
-const { state } = useSiteLayout()
+const { visibleSections } = useSiteLayout()
 
 const components: Record<SectionId, Component> = {
   about: AboutSection,
   projects: ProjectsSection,
   contact: ContactSection,
 }
+
+const shown = computed(() => visibleSections())
 </script>
 
 <template>
@@ -21,12 +24,11 @@ const components: Record<SectionId, Component> = {
       <aside class="app-dock" aria-label="Chat with Micro-Mike">
         <AiSection />
       </aside>
-      <div class="app-column">
-        <component
-          v-for="section in state.sections"
-          :is="components[section.id]"
-          :key="section.id"
-        />
+      <transition-group v-if="shown.length" tag="div" name="stack" class="app-column">
+        <component v-for="section in shown" :is="components[section.id]" :key="section.id" />
+      </transition-group>
+      <div v-else class="app-column app-column--empty" role="note">
+        <p class="pixel-chat__hint">All sections are hidden. Ask Mini-Michi to show one again.</p>
       </div>
     </div>
   </main>

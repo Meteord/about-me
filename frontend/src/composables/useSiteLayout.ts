@@ -6,7 +6,14 @@ export type ThemeName = 'amber' | 'orange' | 'red'
 export interface SectionState {
   id: SectionId
   expanded: boolean
+  visible: boolean
 }
+
+export const DEFAULT_SECTIONS: SectionState[] = [
+  { id: 'about', expanded: true, visible: true },
+  { id: 'projects', expanded: false, visible: true },
+  { id: 'contact', expanded: false, visible: true },
+]
 
 export interface SiteLayout {
   sections: SectionState[]
@@ -16,11 +23,7 @@ export interface SiteLayout {
 }
 
 const state = reactive<SiteLayout>({
-  sections: [
-    { id: 'about', expanded: true },
-    { id: 'projects', expanded: false },
-    { id: 'contact', expanded: false },
-  ],
+  sections: DEFAULT_SECTIONS.map((section) => ({ ...section })),
   theme: 'amber',
   scanlines: true,
   highlight: null,
@@ -49,6 +52,16 @@ export function useSiteLayout() {
     if (index !== -1) state.sections[index].expanded = expanded
   }
 
+  const isVisible = (id: SectionId): boolean =>
+    state.sections.find((section) => section.id === id)?.visible ?? true
+
+  const setVisible = (id: SectionId, visible: boolean): void => {
+    const index = findIndex(id)
+    if (index !== -1) state.sections[index].visible = visible
+  }
+
+  const visibleSections = (): SectionState[] => state.sections.filter((section) => section.visible)
+
   const moveSection = (id: SectionId, direction: 'up' | 'down'): boolean => {
     const index = findIndex(id)
     if (index === -1) return false
@@ -59,13 +72,30 @@ export function useSiteLayout() {
     return true
   }
 
-  const moveSectionTo = (id: SectionId, position: number): boolean => {
+  const moveSectionTo = (id: SectionId, position: number | 'top' | 'bottom'): boolean => {
     const index = findIndex(id)
     if (index === -1) return false
-    const clamped = Math.max(0, Math.min(state.sections.length - 1, position))
+    const raw =
+      position === 'top' ? 0 : position === 'bottom' ? state.sections.length - 1 : position
+    const clamped = Math.max(0, Math.min(state.sections.length - 1, raw))
     const [section] = state.sections.splice(index, 1)
     state.sections.splice(clamped, 0, section)
     return true
+  }
+
+  const rotateSections = (direction: 'next' | 'prev'): void => {
+    if (state.sections.length < 2) return
+    if (direction === 'next') {
+      const [section] = state.sections.splice(0, 1)
+      state.sections.push(section)
+    } else {
+      const section = state.sections.pop()
+      if (section) state.sections.unshift(section)
+    }
+  }
+
+  const resetLayout = (): void => {
+    state.sections = DEFAULT_SECTIONS.map((section) => ({ ...section }))
   }
 
   const setTheme = (theme: ThemeName): void => {
@@ -117,8 +147,13 @@ export function useSiteLayout() {
     isExpanded,
     toggle,
     setExpanded,
+    isVisible,
+    setVisible,
+    visibleSections,
     moveSection,
     moveSectionTo,
+    rotateSections,
+    resetLayout,
     setTheme,
     cycleTheme,
     toggleScanlines,
