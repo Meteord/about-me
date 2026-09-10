@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { useChatModel } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
 import {
@@ -37,7 +37,14 @@ type ChatMessage =
 
 const { state, loadModel, generate, dispose } = useChatModel()
 const { focusSection } = useSiteLayout()
-const { mode: retrievalMode, topK: retrievalTopK, retrieve, disposeNeural } = useToolRetrieval()
+const {
+  mode: retrievalMode,
+  topK: retrievalTopK,
+  retrieve,
+  disposeNeural,
+  neural,
+  loadNeural,
+} = useToolRetrieval()
 
 const input = ref('')
 const messages = ref<ChatMessage[]>([])
@@ -216,6 +223,12 @@ watch(
   () => scrollToBottom(),
 )
 
+onMounted(() => {
+  if (state.value.status === 'idle') {
+    void loadModel().catch(() => {})
+  }
+})
+
 async function handleSend(raw?: string): Promise<void> {
   const text = (raw ?? input.value).trim()
   if (!text || isGenerating.value) return
@@ -226,6 +239,14 @@ async function handleSend(raw?: string): Promise<void> {
     } catch {
       return
     }
+  }
+
+  if (
+    (retrievalMode.value === 'hybrid' || retrievalMode.value === 'neural') &&
+    neural.value.status !== 'ready' &&
+    neural.value.status !== 'loading'
+  ) {
+    void loadNeural().catch(() => {})
   }
 
   input.value = ''
@@ -322,43 +343,15 @@ function clearChat(): void {
       <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
     <div class="ai-panel__body">
+      <ToolSelectorPanel :on-clear="clearChat" />
+
       <div class="pixel-chat__hero">
         <img src="/mm.png" alt="Mini-Michi" class="pixel-avatar pixel-chat__hero-avatar" />
-        <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
-        <p class="pixel-chat__hero-sub">…about Michael</p>
+        <div class="pixel-chat__hero-copy">
+          <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
+          <p class="pixel-chat__hero-sub">…about Michael</p>
+        </div>
       </div>
-      <div class="ai-status" aria-live="polite">
-        <span class="ai-status__badge" :class="`ai-status__badge--${state.status}`">
-          {{ state.status }}
-        </span>
-        <span v-if="state.device" class="ai-status__device">
-          {{ state.device === 'webgpu' ? 'WEBGPU' : 'WASM' }} · {{ state.dtype }}
-        </span>
-        <span v-if="state.status === 'loading'" class="ai-status__file">{{ state.file }}</span>
-        <button
-          v-if="state.status === 'idle' || state.status === 'error'"
-          class="pixel-link-btn ai-status__load"
-          type="button"
-          @click="loadModel"
-        >
-          {{ state.status === 'error' ? 'Retry model' : 'Load model' }}
-        </button>
-        <button class="pixel-link-btn ai-status__clear" type="button" @click="clearChat">
-          Clear
-        </button>
-      </div>
-
-      <div
-        v-if="state.status === 'loading'"
-        class="ai-progress"
-        role="progressbar"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        :aria-valuenow="state.progress"
-      >
-        <span class="ai-progress__bar" :style="{ width: state.progress + '%' }"></span>
-      </div>
-      <p v-if="state.status === 'error'" class="ai-error">{{ state.error }}</p>
 
       <div ref="chatEl" class="pixel-chat">
         <template v-for="message in messages" :key="message.id">
@@ -558,15 +551,13 @@ function clearChat(): void {
           aria-label="Chat message"
         />
         <button
-          class="pixel-link-btn pixel-chat__send"
+          class="pixel-chat__send"
           type="submit"
           :disabled="isGenerating || state.status !== 'ready' || !input.trim()"
         >
           Send
         </button>
       </form>
-
-      <ToolSelectorPanel />
     </div>
   </div>
 </template>

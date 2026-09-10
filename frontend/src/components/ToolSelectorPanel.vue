@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useChatModel } from '../composables/useChatModel'
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
 import { toolSelectorOpen } from '../composables/retrievalSettings'
 import { TOOL_SCHEMAS } from '../tools/registry'
 
+defineProps<{ onClear?: () => void }>()
+
+const { state: chatState, loadModel } = useChatModel()
 const { mode, topK, lastQuery, lastResult, neural, retrieve, loadNeural } = useToolRetrieval()
 
 const MODES: RetrievalMode[] = ['lexical', 'neural', 'hybrid']
@@ -103,8 +107,14 @@ const prunedPercent = computed(() => {
       @click="expanded = !expanded"
     >
       <span class="tool-selector__heading">
-        <span class="tool-selector__title">Tool Selector</span>
-        <span class="tool-selector__tagline">picks the top tools for each request</span>
+        <span class="tool-selector__title">Model settings</span>
+        <span class="tool-selector__tagline">chat model + tool retriever</span>
+      </span>
+      <span
+        class="ai-status__badge tool-selector__bar-status"
+        :class="`ai-status__badge--${chatState.status}`"
+      >
+        {{ chatState.status }}
       </span>
       <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="pixel-window__toggle">{{ expanded ? '−' : '+' }}</span>
@@ -112,132 +122,177 @@ const prunedPercent = computed(() => {
 
     <transition name="fade">
       <div v-if="expanded" id="tool-selector-content" class="tool-selector__content">
-        <p class="tool-selector__intro">
-          Retrieves up to the top-{{ topK }} tools for a request — like LiquidAI's ColBERT
-          tool-selection demo — so Mini-Michi only sees the schemas it actually needs.
-        </p>
-
-        <div class="tool-selector__controls">
-          <form class="tool-selector__form" @submit.prevent="runRetrieve()">
-            <input
-              v-model="query"
-              class="pixel-chat__field tool-selector__field"
-              type="text"
-              autocomplete="off"
-              :disabled="busy"
-              placeholder="e.g. Move contact to the top…"
-              aria-label="Retrieval query"
-            />
+        <div class="model-settings__section">
+          <p class="model-settings__heading">Chat model</p>
+          <div class="ai-status" aria-live="polite">
+            <span class="ai-status__badge" :class="`ai-status__badge--${chatState.status}`">
+              {{ chatState.status }}
+            </span>
+            <span v-if="chatState.device" class="ai-status__device">
+              {{ chatState.device === 'webgpu' ? 'WEBGPU' : 'WASM' }} · {{ chatState.dtype }}
+            </span>
+            <span v-if="chatState.status === 'loading'" class="ai-status__file">
+              {{ chatState.file }}
+            </span>
             <button
-              class="pixel-link-btn tool-selector__go"
-              type="submit"
-              :disabled="busy || !query.trim()"
+              v-if="chatState.status === 'idle' || chatState.status === 'error'"
+              class="pixel-link-btn ai-status__load"
+              type="button"
+              @click="loadModel"
             >
-              {{ busy ? '…' : 'Retrieve' }}
+              {{ chatState.status === 'error' ? 'Retry model' : 'Load model' }}
             </button>
-          </form>
-
-          <div class="tool-selector__row">
-            <div class="tool-selector__chips" role="group" aria-label="Retriever mode">
-              <button
-                v-for="m in MODES"
-                :key="m"
-                type="button"
-                class="pixel-chip tool-selector__chip"
-                :class="{ 'tool-selector__chip--active': mode === m }"
-                @click="setMode(m)"
-              >
-                {{ MODE_LABEL[m] }}
-              </button>
-            </div>
-
-            <div class="tool-selector__topk">
-              <button
-                type="button"
-                class="tool-selector__step"
-                aria-label="Retrieve fewer tools"
-                :disabled="busy"
-                @click="bumpTopK(-1)"
-              >
-                −
-              </button>
-              <span class="tool-selector__topk-value">top {{ topK }}</span>
-              <button
-                type="button"
-                class="tool-selector__step"
-                aria-label="Retrieve more tools"
-                :disabled="busy"
-                @click="bumpTopK(1)"
-              >
-                +
-              </button>
-            </div>
+            <button
+              v-if="onClear"
+              class="pixel-link-btn ai-status__clear"
+              type="button"
+              @click="onClear"
+            >
+              Clear
+            </button>
           </div>
-        </div>
-
-        <div v-if="neural.status === 'loading'" class="tool-selector__load">
           <div
-            class="ai-progress tool-selector__progress"
+            v-if="chatState.status === 'loading'"
+            class="ai-progress"
             role="progressbar"
             aria-valuemin="0"
             aria-valuemax="100"
-            :aria-valuenow="neural.progress"
+            :aria-valuenow="chatState.progress"
           >
-            <span class="ai-progress__bar" :style="{ width: neural.progress + '%' }"></span>
+            <span class="ai-progress__bar" :style="{ width: chatState.progress + '%' }"></span>
           </div>
-          <span v-if="neural.file" class="ai-status__file">{{ neural.file }}</span>
+          <p v-if="chatState.status === 'error'" class="ai-error">{{ chatState.error }}</p>
         </div>
 
-        <p v-if="neural.status === 'error'" class="tool-selector__error">
-          Encoder failed to load — falling back to lexical scores.
-          <button type="button" class="tool-selector__retry" @click="loadNeural">Retry</button>
-        </p>
-
-        <div v-if="lastResult" class="tool-selector__results">
-          <ol class="tool-selector__list">
-            <li
-              v-for="row in lastResult.rows"
-              :key="row.name"
-              class="tool-result"
-              :class="{ 'tool-result--selected': row.selected }"
-            >
-              <span class="tool-result__rank">{{ row.rank + 1 }}</span>
-              <span class="tool-result__name">{{ row.name }}</span>
-              <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
-              <span class="tool-result__bar" aria-hidden="true">
-                <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
-              </span>
-              <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
-              <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
-            </li>
-          </ol>
-
-          <p class="tool-selector__stats">
-            {{ lastResult.stats.total }} tools · top {{ lastResult.stats.selected }} selected ·
-            {{
-              lastResult.stats.effective === lastResult.stats.mode
-                ? lastResult.stats.mode
-                : lastResult.stats.effective + ' (fallback)'
-            }}
-            · ~{{ prunedPercent }}% of schemas pruned · {{ lastResult.stats.latencyMs }}ms
+        <div class="model-settings__section">
+          <p class="model-settings__heading">Tool retriever</p>
+          <p class="tool-selector__intro">
+            Retrieves up to the top-{{ topK }} tools for a request — like LiquidAI's ColBERT
+            tool-selection demo — so Mini-Michi only sees the schemas it actually needs.
           </p>
-        </div>
 
-        <div v-else class="tool-selector__empty">
-          <p class="pixel-chat__hint">
-            Type a request to see which tools get pre-selected for the chat model.
-          </p>
-          <div class="pixel-tags tool-selector__samples">
-            <button
-              v-for="sample in SAMPLES"
-              :key="sample"
-              type="button"
-              class="pixel-chip pixel-chat__example"
-              :disabled="busy"
-              @click="onSample(sample)"
+          <div class="tool-selector__controls">
+            <form class="tool-selector__form" @submit.prevent="runRetrieve()">
+              <input
+                v-model="query"
+                class="pixel-chat__field tool-selector__field"
+                type="text"
+                autocomplete="off"
+                :disabled="busy"
+                placeholder="e.g. Move contact to the top…"
+                aria-label="Retrieval query"
+              />
+              <button
+                class="pixel-link-btn tool-selector__go"
+                type="submit"
+                :disabled="busy || !query.trim()"
+              >
+                {{ busy ? '…' : 'Retrieve' }}
+              </button>
+            </form>
+
+            <div class="tool-selector__row">
+              <div class="tool-selector__chips" role="group" aria-label="Retriever mode">
+                <button
+                  v-for="m in MODES"
+                  :key="m"
+                  type="button"
+                  class="pixel-chip tool-selector__chip"
+                  :class="{ 'tool-selector__chip--active': mode === m }"
+                  @click="setMode(m)"
+                >
+                  {{ MODE_LABEL[m] }}
+                </button>
+              </div>
+
+              <div class="tool-selector__topk">
+                <button
+                  type="button"
+                  class="tool-selector__step"
+                  aria-label="Retrieve fewer tools"
+                  :disabled="busy"
+                  @click="bumpTopK(-1)"
+                >
+                  −
+                </button>
+                <span class="tool-selector__topk-value">top {{ topK }}</span>
+                <button
+                  type="button"
+                  class="tool-selector__step"
+                  aria-label="Retrieve more tools"
+                  :disabled="busy"
+                  @click="bumpTopK(1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="neural.status === 'loading'" class="tool-selector__load">
+            <div
+              class="ai-progress tool-selector__progress"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-valuenow="neural.progress"
             >
-              {{ sample }}
-            </button>
+              <span class="ai-progress__bar" :style="{ width: neural.progress + '%' }"></span>
+            </div>
+            <span v-if="neural.file" class="ai-status__file">{{ neural.file }}</span>
+          </div>
+
+          <p v-if="neural.status === 'error'" class="tool-selector__error">
+            Encoder failed to load — falling back to lexical scores.
+            <button type="button" class="tool-selector__retry" @click="loadNeural">Retry</button>
+          </p>
+
+          <div v-if="lastResult" class="tool-selector__results">
+            <ol class="tool-selector__list">
+              <li
+                v-for="row in lastResult.rows"
+                :key="row.name"
+                class="tool-result"
+                :class="{ 'tool-result--selected': row.selected }"
+              >
+                <span class="tool-result__rank">{{ row.rank + 1 }}</span>
+                <span class="tool-result__name">{{ row.name }}</span>
+                <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
+                <span class="tool-result__bar" aria-hidden="true">
+                  <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
+                </span>
+                <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
+                <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+              </li>
+            </ol>
+
+            <p class="tool-selector__stats">
+              {{ lastResult.stats.total }} tools · top {{ lastResult.stats.selected }} selected ·
+              {{
+                lastResult.stats.effective === lastResult.stats.mode
+                  ? lastResult.stats.mode
+                  : lastResult.stats.effective + ' (fallback)'
+              }}
+              · ~{{ prunedPercent }}% of schemas pruned · {{ lastResult.stats.latencyMs }}ms
+            </p>
+          </div>
+
+          <div v-else class="tool-selector__empty">
+            <p class="pixel-chat__hint">
+              Type a request to see which tools get pre-selected for the chat model.
+            </p>
+            <div class="pixel-tags tool-selector__samples">
+              <button
+                v-for="sample in SAMPLES"
+                :key="sample"
+                type="button"
+                class="pixel-chip pixel-chat__example"
+                :disabled="busy"
+                @click="onSample(sample)"
+              >
+                {{ sample }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
