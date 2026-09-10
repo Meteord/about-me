@@ -621,6 +621,12 @@ body.crt-glitch::before {
   outline-offset: 2px;
 }
 
+.pixel-link-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
 /* ------------------------------------------------------------------ */
 /* Projects                                                            */
 /* ------------------------------------------------------------------ */
@@ -1520,6 +1526,32 @@ body.crt-glitch::before {
   background: rgba(248, 113, 113, 0.08);
 }
 
+.pixel-msg--status {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.pixel-msg__progress {
+  width: 100%;
+}
+
+.pixel-chat__new {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  padding: 0.2rem 0.625rem;
+}
+
+.pixel-chat__replies {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.375rem;
+  padding: 0 0.125rem 0.25rem;
+}
+
 .pixel-chat__empty {
   display: flex;
   flex-direction: column;
@@ -1641,6 +1673,15 @@ body.crt-glitch::before {
 .pixel-chat__send:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.pixel-chat__send--stop {
+  background: var(--pixel-red);
+}
+
+.pixel-chat__send--stop:hover:not(:disabled) {
+  background: var(--pixel-red);
+  filter: brightness(1.15);
 }
 
 /* ------------------------------------------------------------------ */

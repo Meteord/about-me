@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
-import { useChatModel } from '../composables/useChatModel'
+import { useChatModel, CancelledError } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
 import {
   useToolRetrieval,
@@ -35,7 +35,14 @@ type ChatMessage =
     }
   | { id: number; role: 'error'; content: string }
 
-const { state, loadModel, generate, dispose } = useChatModel()
+const {
+  state,
+  loadModel,
+  generate,
+  dispose,
+  cancel: cancelGeneration,
+  resetCancel,
+} = useChatModel()
 const { focusSection } = useSiteLayout()
 const {
   mode: retrievalMode,
@@ -212,9 +219,12 @@ function renderMarkdown(text: string): string {
   return out.join('\n')
 }
 
-function scrollToBottom(): void {
+function scrollToBottom(force = false): void {
   nextTick(() => {
-    if (chatEl.value) chatEl.value.scrollTop = chatEl.value.scrollHeight
+    const el = chatEl.value
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 96
+    if (force || nearBottom) el.scrollTop = el.scrollHeight
   })
 }
 
@@ -253,6 +263,8 @@ async function handleSend(raw?: string): Promise<void> {
   push('user', { content: text })
   modelMessages.value.push({ role: 'user', content: text })
   isGenerating.value = true
+  resetCancel()
+  scrollToBottom(true)
 
   try {
     const retrieval = await retrieve(text, {
@@ -277,16 +289,32 @@ async function handleSend(raw?: string): Promise<void> {
       generatingId.value = placeholderId
 
       let streamed = ''
-      const response = await generate(
-        [{ role: 'system', content: buildSystemPrompt(selectedNames) }, ...modelMessages.value],
-        toolSchemas,
-        (token: string) => {
-          streamed += token
-          const current = messages.value.find((message) => message.id === placeholderId)
-          if (current && current.role === 'assistant') current.content = streamed
-          scrollToBottom()
-        },
-      )
+      let response: string
+      try {
+        response = await generate(
+          [{ role: 'system', content: buildSystemPrompt(selectedNames) }, ...modelMessages.value],
+          toolSchemas,
+          (token: string) => {
+            streamed += token
+            const current = messages.value.find((message) => message.id === placeholderId)
+            if (current && current.role === 'assistant') current.content = streamed
+            scrollToBottom()
+          },
+        )
+      } catch (error) {
+        if (!(error instanceof CancelledError)) throw error
+        const index = messages.value.findIndex((message) => message.id === placeholderId)
+        if (index !== -1) {
+          if (streamed) {
+            const current = messages.value[index]
+            if (current.role === 'assistant') current.content = streamed
+          } else {
+            messages.value.splice(index, 1)
+          }
+        }
+        if (streamed) modelMessages.value.push({ role: 'assistant', content: streamed })
+        break
+      }
       modelMessages.value.push({ role: 'assistant', content: response })
 
       const toolCallContent = extractToolCallContent(response)
@@ -334,6 +362,23 @@ function clearChat(): void {
   disposeVector()
   pickSuggestions()
 }
+
+function startNewChat(): void {
+  messages.value = []
+  modelMessages.value = []
+  generatingId.value = null
+  resetCancel()
+  pickSuggestions()
+  nextTick(() => inputEl.value?.focus())
+}
+
+async function retryModel(): Promise<void> {
+  try {
+    await loadModel()
+  } catch {
+    // failure is surfaced through the status badge / error bubble
+  }
+}
 </script>
 
 <template>
@@ -351,6 +396,14 @@ function clearChat(): void {
           <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
           <p class="pixel-chat__hero-sub">…about Michael</p>
         </div>
+        <button
+          class="pixel-link-btn pixel-chat__new"
+          type="button"
+          :disabled="isGenerating || messages.length === 0"
+          @click="startNewChat"
+        >
+          New chat
+        </button>
       </div>
 
       <div ref="chatEl" class="pixel-chat">
@@ -504,6 +557,36 @@ function clearChat(): void {
           </div>
         </template>
 
+        <div
+          v-if="
+            messages.length === 0 && (state.status === 'checking' || state.status === 'loading')
+          "
+          class="pixel-msg pixel-msg--status"
+        >
+          <p class="pixel-msg__text">Warming up Mini-Michi…</p>
+          <div
+            class="ai-progress pixel-msg__progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="state.progress"
+          >
+            <span class="ai-progress__bar" :style="{ width: state.progress + '%' }"></span>
+          </div>
+          <p class="pixel-msg__dim">
+            {{ state.progress }}% · {{ state.file || 'fetching model…' }}
+          </p>
+        </div>
+        <div
+          v-else-if="messages.length === 0 && state.status === 'error'"
+          class="pixel-msg pixel-msg--error"
+        >
+          <p>Model failed to load: {{ state.error }}</p>
+          <button class="pixel-link-btn pixel-msg__jump" type="button" @click="retryModel">
+            Retry model
+          </button>
+        </div>
+
         <div v-if="messages.length === 0" class="pixel-chat__empty">
           <p class="pixel-chat__hint">
             Hi! I'm Mini-Michi, an on-device SLM running here in your browser over
@@ -537,6 +620,19 @@ function clearChat(): void {
             </button>
           </div>
         </div>
+
+        <div v-if="messages.length > 0" class="pixel-chat__replies" aria-label="Try asking">
+          <button
+            v-for="example in suggestions"
+            :key="example"
+            class="pixel-chip pixel-chat__example"
+            type="button"
+            :disabled="isGenerating || state.status !== 'ready'"
+            @click="handleSend(example)"
+          >
+            {{ example }}
+          </button>
+        </div>
       </div>
 
       <form class="pixel-chat__input" @submit.prevent="handleSend()">
@@ -551,9 +647,18 @@ function clearChat(): void {
           aria-label="Chat message"
         />
         <button
+          v-if="isGenerating"
+          class="pixel-chat__send pixel-chat__send--stop"
+          type="button"
+          @click="cancelGeneration"
+        >
+          Stop
+        </button>
+        <button
+          v-else
           class="pixel-chat__send"
           type="submit"
-          :disabled="isGenerating || state.status !== 'ready' || !input.trim()"
+          :disabled="state.status !== 'ready' || !input.trim()"
         >
           Send
         </button>

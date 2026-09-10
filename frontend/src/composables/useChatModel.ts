@@ -6,6 +6,23 @@ import { sampling } from './retrievalSettings'
 
 const MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX'
 
+export class CancelledError extends Error {
+  constructor() {
+    super('Generation cancelled')
+    this.name = 'CancelledError'
+  }
+}
+
+let cancelled = false
+
+function cancelGeneration(): void {
+  cancelled = true
+}
+
+function resetCancel(): void {
+  cancelled = false
+}
+
 export type ModelDevice = 'webgpu' | 'wasm'
 export type ModelStatus = 'idle' | 'checking' | 'loading' | 'ready' | 'error'
 
@@ -153,7 +170,10 @@ export function useChatModel() {
     const streamer = new module.TextStreamer(tokenizer, {
       skip_prompt: true,
       skip_special_tokens: true,
-      callback_function: onToken,
+      callback_function: (text: string) => {
+        if (cancelled) throw new CancelledError()
+        onToken(text)
+      },
     })
 
     const output = (await model.generate({
@@ -187,5 +207,5 @@ export function useChatModel() {
     state.value.error = null
   }
 
-  return { state, loadModel, generate, dispose }
+  return { state, loadModel, generate, dispose, cancel: cancelGeneration, resetCancel }
 }
