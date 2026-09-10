@@ -8,6 +8,7 @@
   },
   "scripts": {
     "generate:llms": "node scripts/generate-llms-txt.mjs",
+    "eval:retrieval": "node scripts/eval-retrieval.mjs",
     "predev": "npm run generate:llms",
     "dev": "vite",
     "prebuild": "npm run generate:llms",

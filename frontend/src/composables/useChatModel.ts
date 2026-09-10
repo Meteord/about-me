@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import type { Tensor } from '@huggingface/transformers'
 import type { ToolSchema } from '../tools/registry'
+import { detectDevice } from './detectDevice'
+import { sampling } from './retrievalSettings'
 
 const MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX'
 
@@ -71,18 +73,9 @@ function progressCallback(progress: { status?: string; file?: string; progress?:
   }
 }
 
-async function detectDevice(): Promise<{ device: ModelDevice; dtype: 'q4' | 'q8' }> {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.gpu) {
-      const adapter = await navigator.gpu.requestAdapter()
-      if (adapter) {
-        return { device: 'webgpu', dtype: 'q4' }
-      }
-    }
-  } catch {
-    // WebGPU present but unavailable — fall through to WASM
-  }
-  return { device: 'wasm', dtype: 'q8' }
+async function detectChatDevice(): Promise<{ device: ModelDevice; dtype: 'q4' | 'q8' }> {
+  const { gpu } = await detectDevice()
+  return gpu ? { device: 'webgpu', dtype: 'q4' } : { device: 'wasm', dtype: 'q8' }
 }
 
 async function loadTransformers(): Promise<TransformerModule> {
@@ -102,7 +95,7 @@ async function loadModelInner(): Promise<void> {
 
   try {
     const module = await loadTransformers()
-    const { device, dtype } = await detectDevice()
+    const { device, dtype } = await detectChatDevice()
     state.value.device = device
     state.value.dtype = dtype
 
@@ -166,7 +159,10 @@ export function useChatModel() {
     const output = (await model.generate({
       ...inputs,
       max_new_tokens: 256,
-      do_sample: false,
+      do_sample: sampling.value,
+      temperature: 0.8,
+      top_p: 0.9,
+      repetition_penalty: 1.15,
       streamer,
     })) as Tensor
 

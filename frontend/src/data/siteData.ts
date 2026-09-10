@@ -102,11 +102,11 @@ export const siteData = {
       tags: ['LFM2.5-350M', 'transformers.js', 'WebGPU', 'WASM'],
     },
     {
-      name: 'Tool retriever — LFM2.5 Encoder',
+      name: 'Tool retriever — LFM2.5 prompt router',
       description:
-        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. Neural mode uses the LFM2.5 Encoder (kucukkanat ONNX export, q8) with cosine similarity; a BM25 lexical retriever acts as an instant fallback.',
-      link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-ONNX',
-      tags: ['LFM2.5-Encoder-350M', 'q8', 'BM25', 'cosine'],
+        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. Vector search mode scores the request against all tool names in a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8); BM25 over an alias-enriched tool index acts as an instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion.',
+      link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX',
+      tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'q8', 'BM25', 'RRF'],
     },
     {
       name: 'Inspiration — ColBERT tool selection',

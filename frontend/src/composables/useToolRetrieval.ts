@@ -7,16 +7,28 @@ import {
   schemaChars,
   type ToolDoc,
 } from '../tools/registry'
+import { detectDevice, type Device } from './detectDevice'
 import { mode, topK } from './retrievalSettings'
 
-const MODEL_ID = 'kucukkanat/LFM2.5-Encoder-350M-ONNX'
+/**
+ * Zero-shot prompt router: scores the visitor's text against the tool names in
+ * one bidirectional encoder pass. Port of the prompt format, byte-span
+ * reconstruction and cosine head from Liquid AI's prompt-routing blueprint
+ * (see kucukkanat/lfm-encoders).
+ */
+const MODEL_ID = 'kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX'
+const HEAD = {
+  scale: 1.3714938163757324,
+  bias: -0.2723352313041687,
+  heading: 'Categories',
+}
 
-export type RetrievalMode = 'lexical' | 'neural' | 'hybrid'
-export type NeuralStatus = 'idle' | 'loading' | 'ready' | 'error'
+export type RetrievalMode = 'lexical' | 'vector' | 'hybrid'
+export type VectorStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-export interface NeuralState {
-  status: NeuralStatus
-  device: string
+export interface VectorState {
+  status: VectorStatus
+  device: Device
   dtype: string
   progress: number
   file: string
@@ -48,7 +60,7 @@ export interface RetrieveResult {
 
 const lastQuery = ref('')
 const lastResult = ref<RetrieveResult | null>(null)
-const neuralState = ref<NeuralState>({
+const vectorState = ref<VectorState>({
   status: 'idle',
   device: 'wasm',
   dtype: 'q8',
@@ -58,78 +70,139 @@ const neuralState = ref<NeuralState>({
 })
 
 /* ------------------------------------------------------------------ */
-/* On-device LFM2.5 encoder (lazy singleton)                           */
+/* On-device prompt router (lazy singleton)                            */
 /* ------------------------------------------------------------------ */
 
 interface TokenizerLike {
-  (text: string): { input_ids: Tensor }
+  (text: string): { input_ids: Tensor; attention_mask: Tensor }
+  tokenize(text: string): string[]
+  bos_token_id: number | null
 }
 
 interface ModelLike {
-  (inputs: { input_ids: Tensor; attention_mask: Tensor }): Promise<{ last_hidden_state: Tensor }>
+  (inputs: { input_ids: Tensor; attention_mask: Tensor }): Promise<{
+    token_proj: Tensor
+    rule_proj: Tensor
+  }>
   dispose?(): Promise<unknown[]>
 }
 
-type TensorCtor = new (type: string, data: ArrayBufferView, dims: number[]) => Tensor
-
-interface EncoderModule {
+interface RouterModule {
   AutoTokenizer: {
     from_pretrained(modelId: string, options: Record<string, unknown>): Promise<TokenizerLike>
   }
   PreTrainedModel: {
     from_pretrained(modelId: string, options: Record<string, unknown>): Promise<ModelLike>
   }
-  Tensor: TensorCtor
   env: { allowLocalModels: boolean; useBrowserCache: boolean }
 }
 
-interface EncoderInstance {
+interface RouterInstance {
   tokenizer: TokenizerLike
   model: ModelLike
-  tensor: TensorCtor
 }
 
-let instance: EncoderInstance | null = null
-let encoderLoading: Promise<void> | null = null
-let docEmbeddings: Float32Array[] | null = null
+let instance: RouterInstance | null = null
+let routerLoading: Promise<void> | null = null
 
 function progressCallback(progress: { status?: string; file?: string; progress?: number }): void {
   if (typeof progress.progress === 'number') {
-    neuralState.value.progress = Math.round(progress.progress)
+    vectorState.value.progress = Math.round(progress.progress)
   }
   if (progress.file) {
-    neuralState.value.file = progress.file
+    vectorState.value.file = progress.file
   }
 }
 
-function normalize(vector: Float32Array): Float32Array {
-  let norm = 0
-  for (let i = 0; i < vector.length; i++) norm += vector[i] * vector[i]
-  norm = Math.sqrt(norm) || 1
-  const out = new Float32Array(vector.length)
-  for (let i = 0; i < vector.length; i++) out[i] = vector[i] / norm
+/* ------------------------------------------------------------------ */
+/* Byte-offset span reconstruction (byte-level BPE; no normalizer)     */
+/* ------------------------------------------------------------------ */
+
+interface Span {
+  start: number
+  end: number
+}
+
+function buildByteIndex(text: string): Uint32Array {
+  const bytes = new TextEncoder().encode(text).length
+  const index = new Uint32Array(bytes + 1)
+  let byte = 0
+  for (let i = 0; i < text.length; ) {
+    const codePoint = text.codePointAt(i) as number
+    const width = codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4
+    for (let k = 0; k < width; k++) index[byte + k] = i
+    byte += width
+    i += codePoint >= 0x10000 ? 2 : 1
+  }
+  index[bytes] = text.length
+  return index
+}
+
+function tokenizeWithSpans(
+  tokenizer: TokenizerLike,
+  encoded: { input_ids: Tensor },
+  text: string,
+): Span[] {
+  const ids = Array.from(encoded.input_ids.data as BigInt64Array | Int32Array, Number)
+  const pieces = tokenizer.tokenize(text)
+  const byteToIndex = buildByteIndex(text)
+  let cursor = 0
+  const pieceSpans: Span[] = pieces.map((piece) => {
+    const start = cursor
+    cursor += piece.length
+    return { start, end: cursor }
+  })
+  if (cursor !== byteToIndex.length - 1) {
+    throw new Error('Token/text byte mismatch — tokenizer is not byte-level BPE.')
+  }
+  let spans = pieceSpans.map((span) => ({
+    start: byteToIndex[span.start] || 0,
+    end: byteToIndex[span.end] || 0,
+  }))
+  if (ids.length === spans.length + 1 && ids[0] === tokenizer.bos_token_id) {
+    spans = [{ start: 0, end: 0 }, ...spans]
+  } else if (ids.length !== spans.length) {
+    throw new Error('Cannot align token ids to character spans.')
+  }
+  return spans
+}
+
+function tokensIn(spans: readonly Span[], span: Span): number[] {
+  const hits: number[] = []
+  for (let i = 0; i < spans.length; i++) {
+    const token = spans[i]
+    if (token.start < span.end && token.end > span.start && token.start !== token.end) {
+      hits.push(i)
+    }
+  }
+  return hits
+}
+
+/* ------------------------------------------------------------------ */
+/* Two-tower pooling                                                   */
+/* ------------------------------------------------------------------ */
+
+function meanRows(matrix: Tensor, indices: readonly number[]): Float32Array {
+  const cols = matrix.dims[2]
+  const data = matrix.data as Float32Array
+  const out = new Float32Array(cols)
+  for (const index of indices) {
+    const row = index * cols
+    for (let c = 0; c < cols; c++) out[c] += data[row + c]
+  }
+  if (indices.length > 0) {
+    for (let c = 0; c < cols; c++) out[c] /= indices.length
+  }
   return out
 }
 
-async function encodeText(text: string): Promise<Float32Array> {
-  if (!instance) throw new Error('Encoder not loaded.')
-  const { input_ids } = instance.tokenizer(text)
-  const seqLen = input_ids.dims[1]
-  const attentionMask = new instance.tensor('int64', new BigInt64Array(seqLen).fill(1n), [
-    1,
-    seqLen,
-  ])
-  const out = await instance.model({ input_ids, attention_mask: attentionMask })
-  const hidden = out.last_hidden_state
-  const data = hidden.data as Float32Array
-  const hiddenSize = hidden.dims[2]
-  const pooled = new Float32Array(hiddenSize)
-  for (let i = 0; i < seqLen; i++) {
-    const offset = i * hiddenSize
-    for (let j = 0; j < hiddenSize; j++) pooled[j] += data[offset + j]
-  }
-  for (let j = 0; j < hiddenSize; j++) pooled[j] /= seqLen
-  return normalize(pooled)
+function normalizeVector(vector: Float32Array): Float32Array {
+  let sum = 0
+  for (const value of vector) sum += value * value
+  const scale = 1 / Math.max(Math.sqrt(sum), 1e-12)
+  const out = new Float32Array(vector.length)
+  for (let i = 0; i < vector.length; i++) out[i] = vector[i] * scale
+  return out
 }
 
 function dot(a: Float32Array, b: Float32Array): number {
@@ -138,66 +211,150 @@ function dot(a: Float32Array, b: Float32Array): number {
   return sum
 }
 
-async function loadNeuralInner(): Promise<void> {
+function buildPrefix(labels: readonly string[]): string {
+  const body = labels.map((label) => `- ${label}`).join('\n')
+  return `${HEAD.heading}:\n${body}\n\nText:\n`
+}
+
+/** Character span of each label inside `buildPrefix(labels)`. */
+function labelRanges(labels: readonly string[]): Span[] {
+  const ranges: Span[] = []
+  let position = `${HEAD.heading}:\n`.length
+  for (const label of labels) {
+    const start = position + 2
+    const end = start + label.length
+    ranges.push({ start, end })
+    position = end + 1
+  }
+  return ranges
+}
+
+/** One pass scores the text against every label (cosine x scale + bias). */
+export function routerLogitsFromPass(
+  pass: { tokenProj: Tensor; ruleProj: Tensor; spans: readonly Span[] },
+  text: string,
+  prefix: string,
+  labels: readonly string[],
+): number[] {
+  const textSpan: Span = { start: prefix.length, end: prefix.length + text.length }
+  const query = normalizeVector(meanRows(pass.tokenProj, tokensIn(pass.spans, textSpan)))
+  return labelRanges(labels).map((span) => {
+    const vector = normalizeVector(meanRows(pass.ruleProj, tokensIn(pass.spans, span)))
+    return dot(vector, query) * HEAD.scale + HEAD.bias
+  })
+}
+
+function softmax(logits: readonly number[]): number[] {
+  const max = Math.max(...logits)
+  const exponentials = logits.map((value) => Math.exp(value - max))
+  const total = exponentials.reduce((a, b) => a + b, 0)
+  return exponentials.map((value) => value / total)
+}
+
+/** Router over the tool docs: one forward pass, softmax across all tools. */
+async function vectorScores(query: string, docs: ToolDoc[]): Promise<number[]> {
+  if (!instance) throw new Error('Router not loaded.')
+  const labels = docs.map((doc) => doc.name.replace(/_/g, ' '))
+  const prefix = buildPrefix(labels)
+  const full = prefix + query
+  const encoded = instance.tokenizer(full)
+  const spans = tokenizeWithSpans(instance.tokenizer, encoded, full)
+  const out = await instance.model({
+    input_ids: encoded.input_ids,
+    attention_mask: encoded.attention_mask,
+  })
+  return softmax(
+    routerLogitsFromPass(
+      { tokenProj: out.token_proj, ruleProj: out.rule_proj, spans },
+      query,
+      prefix,
+      labels,
+    ),
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Encoder lifecycle                                                   */
+/* ------------------------------------------------------------------ */
+
+async function loadRouterInner(): Promise<void> {
   if (instance) return
 
-  neuralState.value.status = 'loading'
-  neuralState.value.progress = 0
-  neuralState.value.file = ''
-  neuralState.value.error = null
+  vectorState.value.status = 'loading'
+  vectorState.value.progress = 0
+  vectorState.value.file = ''
+  vectorState.value.error = null
 
   try {
-    const mod = (await import('@huggingface/transformers')) as unknown as EncoderModule
+    const mod = (await import('@huggingface/transformers')) as unknown as RouterModule
     mod.env.allowLocalModels = false
     mod.env.useBrowserCache = true
 
-    const tokenizer = await mod.AutoTokenizer.from_pretrained(MODEL_ID, {
-      progress_callback: progressCallback,
-    })
-    const model = await mod.PreTrainedModel.from_pretrained(MODEL_ID, {
-      dtype: 'q8',
-      progress_callback: progressCallback,
-    })
-    instance = { tokenizer, model, tensor: mod.Tensor }
-
-    const docs = getToolDocs()
-    docEmbeddings = []
-    for (const doc of docs) {
-      docEmbeddings.push(await encodeText(doc.text))
+    let tokenizer: TokenizerLike
+    let model: ModelLike
+    let device: Device = 'wasm'
+    try {
+      if ((await detectDevice()).device === 'webgpu') {
+        tokenizer = await mod.AutoTokenizer.from_pretrained(MODEL_ID, {
+          progress_callback: progressCallback,
+        })
+        model = await mod.PreTrainedModel.from_pretrained(MODEL_ID, {
+          device: 'webgpu',
+          dtype: 'q8',
+          progress_callback: progressCallback,
+        })
+        device = 'webgpu'
+      } else {
+        throw new Error('no webgpu')
+      }
+    } catch {
+      device = 'wasm'
+      tokenizer = await mod.AutoTokenizer.from_pretrained(MODEL_ID, {
+        progress_callback: progressCallback,
+      })
+      model = await mod.PreTrainedModel.from_pretrained(MODEL_ID, {
+        device: 'wasm',
+        dtype: 'q8',
+        progress_callback: progressCallback,
+      })
     }
+    instance = { tokenizer, model }
+    vectorState.value.device = device
+    vectorState.value.dtype = 'q8'
 
-    neuralState.value.status = 'ready'
-    neuralState.value.progress = 100
+    vectorState.value.status = 'ready'
+    vectorState.value.progress = 100
   } catch (error) {
-    neuralState.value.status = 'error'
-    neuralState.value.error = error instanceof Error ? error.message : String(error)
+    vectorState.value.status = 'error'
+    vectorState.value.error = error instanceof Error ? error.message : String(error)
     throw error
   }
 }
 
-export function loadNeural(): Promise<void> {
-  if (!encoderLoading) {
-    encoderLoading = loadNeuralInner().catch((error: unknown) => {
-      encoderLoading = null
+export function loadVector(): Promise<void> {
+  if (!routerLoading) {
+    routerLoading = loadRouterInner().catch((error: unknown) => {
+      routerLoading = null
       throw error
     })
   }
-  return encoderLoading
+  return routerLoading
 }
 
-export function disposeNeural(): void {
+export function disposeVector(): void {
   try {
     void instance?.model.dispose?.()
   } catch {
     // ignore dispose errors
   }
   instance = null
-  encoderLoading = null
-  docEmbeddings = null
-  neuralState.value.status = 'idle'
-  neuralState.value.progress = 0
-  neuralState.value.file = ''
-  neuralState.value.error = null
+  routerLoading = null
+  vectorState.value.status = 'idle'
+  vectorState.value.device = 'wasm'
+  vectorState.value.dtype = 'q8'
+  vectorState.value.progress = 0
+  vectorState.value.file = ''
+  vectorState.value.error = null
 }
 
 /* ------------------------------------------------------------------ */
@@ -266,26 +423,28 @@ function lexicalScores(query: string, docs: ToolDoc[]): number[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Neural retriever (LFM2.5 encoder, cosine over mean-pooled vectors)  */
+/* Hybrid fusion (Reciprocal Rank Fusion)                              */
 /* ------------------------------------------------------------------ */
 
-async function neuralScores(query: string): Promise<number[]> {
-  if (!instance || !docEmbeddings) {
-    await loadNeural()
-  }
-  if (!instance || !docEmbeddings) {
-    throw new Error('Neural retriever unavailable.')
-  }
-  const queryEmbedding = await encodeText(query)
-  return docEmbeddings.map((embedding) => dot(queryEmbedding, embedding))
-}
+const RRF_K = 60
 
-function hybridScores(lexical: number[], neural: number[]): number[] {
-  const maxLexical = Math.max(...lexical, 1e-9)
-  const maxNeural = Math.max(...neural, 1e-9)
-  return lexical.map(
-    (score, index) => 0.5 * (score / maxLexical) + 0.5 * (neural[index] / maxNeural),
+function hybridScores(lexical: number[], vector: number[]): number[] {
+  const rankOf = (scores: number[]): number[] => {
+    const order = scores.map((score, index) => [score, index] as const)
+    order.sort((a, b) => b[0] - a[0])
+    const ranks = Array.from({ length: scores.length }, () => 0)
+    order.forEach(([, index], rank) => {
+      ranks[index] = rank
+    })
+    return ranks
+  }
+  const lexRanks = rankOf(lexical)
+  const vectorRanks = rankOf(vector)
+  const fused = lexical.map(
+    (_, index) => 1 / (RRF_K + lexRanks[index] + 1) + 1 / (RRF_K + vectorRanks[index] + 1),
   )
+  const max = Math.max(...fused, 1e-9)
+  return fused.map((score) => score / max)
 }
 
 /* ------------------------------------------------------------------ */
@@ -318,17 +477,22 @@ export async function retrieve(
     }
   }
 
-  const neuralReady = neuralState.value.status === 'ready'
-  const needsNeural = selectedMode === 'neural' || selectedMode === 'hybrid'
-  const effective = needsNeural && !neuralReady ? 'lexical' : selectedMode
+  const vectorReady = vectorState.value.status === 'ready'
+  const needsVector = selectedMode === 'vector' || selectedMode === 'hybrid'
+  let effective = needsVector && !vectorReady ? 'lexical' : selectedMode
 
   let scores: number[]
-  if (selectedMode === 'lexical' || !neuralReady) {
+  try {
+    if (selectedMode === 'lexical' || !vectorReady) {
+      scores = lexicalScores(query, docs)
+    } else if (selectedMode === 'vector') {
+      scores = await vectorScores(query, docs)
+    } else {
+      scores = hybridScores(lexicalScores(query, docs), await vectorScores(query, docs))
+    }
+  } catch {
     scores = lexicalScores(query, docs)
-  } else if (selectedMode === 'neural') {
-    scores = await neuralScores(query)
-  } else {
-    scores = hybridScores(lexicalScores(query, docs), await neuralScores(query))
+    effective = 'lexical'
   }
 
   const order = scores.map((_, index) => index).sort((a, b) => scores[b] - scores[a])
@@ -355,7 +519,7 @@ export async function retrieve(
       total: docs.length,
       selected: selectedNames.length,
       mode: selectedMode,
-      effective,
+      effective: effective as RetrievalMode,
       totalChars,
       prunedChars,
       latencyMs: Math.round(performance.now() - start),
@@ -370,9 +534,9 @@ export function useToolRetrieval() {
     topK,
     lastQuery,
     lastResult,
-    neural: neuralState,
+    vector: vectorState,
     retrieve,
-    loadNeural,
-    disposeNeural,
+    loadVector,
+    disposeVector,
   }
 }

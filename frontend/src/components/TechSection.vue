@@ -20,7 +20,7 @@ const steps = ['01', '02', '03'] as const
 
 const flowNodes = [
   { title: 'You', sub: 'ask a question' },
-  { title: 'Tool retriever', sub: 'BM25 / neural · top-k schemas' },
+  { title: 'Tool retriever', sub: 'BM25 / vector search · top-k schemas' },
   { title: 'Mini-Michi', sub: 'LFM2.5-350M · WebGPU / WASM' },
   { title: 'Reply', sub: 'streamed token-by-token' },
 ]

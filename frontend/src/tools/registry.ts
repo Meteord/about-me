@@ -456,14 +456,14 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     function: {
       name: 'set_retrieval_mode',
       description:
-        'Change how Mini-Michi picks its tools before each reply: lexical (instant BM25), neural (encoder embeddings) or hybrid (both blended). Example: set_retrieval_mode(mode="lexical")',
+        'Change how Mini-Michi picks its tools before each reply: lexical (instant BM25), vector (an on-device vector-search retriever) or hybrid (both rankings fused). Example: set_retrieval_mode(mode="lexical")',
       parameters: {
         type: 'object',
         properties: {
           mode: {
             type: 'string',
             description: 'Retrieval strategy for tool selection.',
-            enum: ['lexical', 'neural', 'hybrid'],
+            enum: ['lexical', 'vector', 'hybrid'],
           },
         },
       },
@@ -556,7 +556,7 @@ const TOOL_GUIDE: Record<string, string> = {
   now: 'now() — current local date and time plus a greeting.',
   random_fact: 'random_fact() — one random fact about Michael or this site.',
   set_retrieval_mode:
-    'set_retrieval_mode(mode="lexical"|"neural"|"hybrid") — change how tools are pre-selected.',
+    'set_retrieval_mode(mode="lexical"|"vector"|"hybrid") — change how tools are pre-selected.',
   set_topk: 'set_topk(count=n) — change how many tools are kept in context.',
   toggle_tool_selector:
     'toggle_tool_selector() — open or close the Tool Selector panel in the dock.',
@@ -1053,10 +1053,10 @@ const executors: Record<string, (args: Record<string, unknown>) => unknown | Pro
 
   set_retrieval_mode: (args) => {
     const value = args.mode as RetrievalMode | undefined
-    if (value !== 'lexical' && value !== 'neural' && value !== 'hybrid') {
+    if (value !== 'lexical' && value !== 'vector' && value !== 'hybrid') {
       return {
         kind: 'text',
-        error: 'set_retrieval_mode requires "mode" (lexical, neural or hybrid).',
+        error: 'set_retrieval_mode requires "mode" (lexical, vector or hybrid).',
       }
     }
     retrievalMode.value = value
@@ -1119,6 +1119,50 @@ export interface ToolDoc {
   text: string
 }
 
+/* Colloquial synonyms and example phrasings visitors use, per tool. They are
+   appended to the doc text so both BM25 and the vector-search retriever can match
+   queries that never literally say the tool name. */
+const TOOL_ALIASES: Record<string, string> = {
+  about_me:
+    'who is michael, tell me about yourself, bio, background, career, education, degree, study, university, skills, tech stack, hobbies, free time, how to reach, email, linkedin, github',
+  about_site:
+    'website content, detailed info, everything about michael, projects, mucgpt, chatbot munich, how the site works, what is this page, story, resume, cv',
+  jump_to_section:
+    'go to, take me to, where is, locate, show me, open, bring up, navigate, scroll to a section',
+  expand_section: 'unfold, open up, show content, make visible, uncollapse',
+  collapse_section: 'fold, close, hide content, shrink, minimize, tuck away',
+  expand_all_sections: 'unfold everything, open all windows, show all content',
+  collapse_all_sections: 'fold everything, close all windows, hide all content',
+  move_section: 'reorder, reorder sections, swap, shift, drag, move up, move down, change order',
+  translate_section:
+    'reposition, put at top, put at bottom, first, last, position number, place, rearrange to spot',
+  rotate_sections:
+    'carousel, cycle, spin, rotate stack, next section on top, shift the whole stack',
+  reverse_sections: 'flip order, invert, upside down, backwards order',
+  shuffle_sections: 'randomize order, mix up, surprise layout, rearrange randomly',
+  sort_sections: 'alphabetical order, organize, tidy up, sort a to z, restore original order',
+  reset_layout: 'default layout, restore, undo everything, back to normal, start over',
+  scroll_page: 'go to the top, go to the bottom, jump to end, scroll up, scroll down',
+  flash_section: 'where is, which one, point at, blink, highlight without opening',
+  set_theme:
+    'dark mode, color, colour, accent, red theme, orange theme, amber theme, recolor, palette',
+  cycle_theme: 'next color, switch color, change palette, another theme',
+  set_background: 'wallpaper, pattern, dots, grid, plain background, backdrop',
+  toggle_scanlines: 'crt lines, retro screen effect, scanline overlay, screen flicker lines',
+  toggle_glitch: 'glitch effect, chaos, distortion, freaky effect',
+  set_zoom:
+    'bigger text, smaller text, font size, enlarge, shrink content, compact view, comfortable',
+  site_stats:
+    'how many tools, what can you do, capabilities, current settings, status, facts about this site',
+  now: 'what time is it, which day, current date, clock, greeting, good morning',
+  random_fact: 'surprise me, fun fact, tell me something, random, trivia, something interesting',
+  set_retrieval_mode:
+    'change retrieval, how tools are picked, bm25, embeddings, retriever strategy',
+  set_topk: 'more tools in context, fewer tools, context size, how many tools retrieved',
+  toggle_tool_selector: 'show ranking, tool panel, open settings panel, see tool scores',
+  list_tools: 'what tools exist, tool overview, everything you can call, list of abilities',
+}
+
 function toolDocText(schema: ToolSchema): string {
   const { name, description, parameters } = schema.function
   const params = Object.entries(parameters.properties)
@@ -1127,7 +1171,8 @@ function toolDocText(schema: ToolSchema): string {
   const enums = Object.values(parameters.properties)
     .flatMap((value) => value.enum ?? [])
     .join(' ')
-  return `${name}. ${description} ${params} ${enums}`
+  const aliases = TOOL_ALIASES[name] ?? ''
+  return `${name}. ${description} ${params} ${enums} ${aliases}`
 }
 
 export function getToolDocs(): ToolDoc[] {

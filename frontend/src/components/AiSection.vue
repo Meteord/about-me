@@ -41,9 +41,9 @@ const {
   mode: retrievalMode,
   topK: retrievalTopK,
   retrieve,
-  disposeNeural,
-  neural,
-  loadNeural,
+  disposeVector,
+  vector,
+  loadVector,
 } = useToolRetrieval()
 
 const input = ref('')
@@ -242,11 +242,11 @@ async function handleSend(raw?: string): Promise<void> {
   }
 
   if (
-    (retrievalMode.value === 'hybrid' || retrievalMode.value === 'neural') &&
-    neural.value.status !== 'ready' &&
-    neural.value.status !== 'loading'
+    (retrievalMode.value === 'hybrid' || retrievalMode.value === 'vector') &&
+    vector.value.status !== 'ready' &&
+    vector.value.status !== 'loading'
   ) {
-    void loadNeural().catch(() => {})
+    void loadVector().catch(() => {})
   }
 
   input.value = ''
@@ -331,7 +331,7 @@ function clearChat(): void {
   messages.value = []
   modelMessages.value = []
   dispose()
-  disposeNeural()
+  disposeVector()
   pickSuggestions()
 }
 </script>

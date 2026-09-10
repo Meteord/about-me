@@ -2,18 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useChatModel } from '../composables/useChatModel'
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
-import { toolSelectorOpen } from '../composables/retrievalSettings'
+import { toolSelectorOpen, sampling } from '../composables/retrievalSettings'
 import { TOOL_SCHEMAS } from '../tools/registry'
 
 defineProps<{ onClear?: () => void }>()
 
 const { state: chatState, loadModel } = useChatModel()
-const { mode, topK, lastQuery, lastResult, neural, retrieve, loadNeural } = useToolRetrieval()
+const { mode, topK, lastQuery, lastResult, vector, retrieve, loadVector } = useToolRetrieval()
 
-const MODES: RetrievalMode[] = ['lexical', 'neural', 'hybrid']
+const MODES: RetrievalMode[] = ['lexical', 'vector', 'hybrid']
 const MODE_LABEL: Record<RetrievalMode, string> = {
   lexical: 'LEX',
-  neural: 'NEUR',
+  vector: 'VECTOR',
   hybrid: 'HYBRID',
 }
 
@@ -58,9 +58,9 @@ function onSample(sample: string): void {
 
 function setMode(next: RetrievalMode): void {
   mode.value = next
-  if (next === 'neural' || next === 'hybrid') {
-    if (neural.value.status !== 'ready' && neural.value.status !== 'loading') {
-      void loadNeural()
+  if (next === 'vector' || next === 'hybrid') {
+    if (vector.value.status !== 'ready' && vector.value.status !== 'loading') {
+      void loadVector()
     }
   }
 }
@@ -78,12 +78,12 @@ watch(lastQuery, (queryText) => {
 })
 
 watch(
-  () => neural.value.status,
+  () => vector.value.status,
   (status) => {
     if (
       status === 'ready' &&
       lastQuery.value &&
-      (mode.value === 'neural' || mode.value === 'hybrid')
+      (mode.value === 'vector' || mode.value === 'hybrid')
     ) {
       void runRetrieve(lastQuery.value)
     }
@@ -162,13 +162,29 @@ const prunedPercent = computed(() => {
             <span class="ai-progress__bar" :style="{ width: chatState.progress + '%' }"></span>
           </div>
           <p v-if="chatState.status === 'error'" class="ai-error">{{ chatState.error }}</p>
+          <p class="tool-selector__intro">
+            Greedy decoding with a repetition penalty keeps answers steady; enable sampling for more
+            varied replies.
+          </p>
+          <div class="tool-selector__row">
+            <button
+              type="button"
+              class="pixel-chip tool-selector__chip"
+              :class="{ 'tool-selector__chip--active': sampling }"
+              :aria-pressed="sampling"
+              @click="sampling = !sampling"
+            >
+              {{ sampling ? 'SAMPLING' : 'GREEDY' }}
+            </button>
+          </div>
         </div>
 
         <div class="model-settings__section">
           <p class="model-settings__heading">Tool retriever</p>
           <p class="tool-selector__intro">
-            Retrieves up to the top-{{ topK }} tools for a request — like LiquidAI's ColBERT
-            tool-selection demo — so Mini-Michi only sees the schemas it actually needs.
+            Scores your request against every tool with an on-device zero-shot prompt-router
+            checkpoint (LFM2.5-Encoder-350M), fused with BM25 over the enriched tool index via
+            reciprocal rank fusion — so Mini-Michi only sees the schemas it actually needs.
           </p>
 
           <div class="tool-selector__controls">
@@ -229,22 +245,22 @@ const prunedPercent = computed(() => {
             </div>
           </div>
 
-          <div v-if="neural.status === 'loading'" class="tool-selector__load">
+          <div v-if="vector.status === 'loading'" class="tool-selector__load">
             <div
               class="ai-progress tool-selector__progress"
               role="progressbar"
               aria-valuemin="0"
               aria-valuemax="100"
-              :aria-valuenow="neural.progress"
+              :aria-valuenow="vector.progress"
             >
-              <span class="ai-progress__bar" :style="{ width: neural.progress + '%' }"></span>
+              <span class="ai-progress__bar" :style="{ width: vector.progress + '%' }"></span>
             </div>
-            <span v-if="neural.file" class="ai-status__file">{{ neural.file }}</span>
+            <span v-if="vector.file" class="ai-status__file">{{ vector.file }}</span>
           </div>
 
-          <p v-if="neural.status === 'error'" class="tool-selector__error">
-            Encoder failed to load — falling back to lexical scores.
-            <button type="button" class="tool-selector__retry" @click="loadNeural">Retry</button>
+          <p v-if="vector.status === 'error'" class="tool-selector__error">
+            Vector retriever failed to load — falling back to lexical scores.
+            <button type="button" class="tool-selector__retry" @click="loadVector">Retry</button>
           </p>
 
           <div v-if="lastResult" class="tool-selector__results">
