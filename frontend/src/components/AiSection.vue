@@ -254,7 +254,7 @@ function clearChat(): void {
     </div>
     <div class="ai-panel__body">
       <div class="pixel-chat__hero">
-        <img src="/mj.jpg" alt="Michael Jaumann" class="pixel-avatar pixel-chat__hero-avatar" />
+        <img src="/mm.png" alt="Mini-Michi" class="pixel-avatar pixel-chat__hero-avatar" />
         <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
         <p class="pixel-chat__hero-sub">…about Michael</p>
       </div>
@@ -297,7 +297,7 @@ function clearChat(): void {
             <p>{{ message.content }}</p>
           </div>
           <div v-else-if="message.role === 'assistant'" class="pixel-msg pixel-msg--ai">
-            <img src="/mj.jpg" alt="" aria-hidden="true" class="pixel-chat__bubble-avatar" />
+            <img src="/mm.png" alt="" aria-hidden="true" class="pixel-chat__bubble-avatar" />
             <div class="pixel-msg__body">
               <div
                 class="pixel-msg__text pixel-msg__markdown"
