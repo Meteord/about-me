@@ -42,11 +42,15 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
         <div class="pixel-tags">
           <span
             v-for="(tag, index) in siteData.tags"
-            :key="tag"
+            :key="tag.label"
             class="pixel-chip"
             :class="tagVariants[index % tagVariants.length]"
-            >{{ tag }}</span
           >
+            <a v-if="tag.url" :href="tag.url" target="_blank" rel="noopener" class="pixel-link">{{
+              tag.label
+            }}</a>
+            <template v-else>{{ tag.label }}</template>
+          </span>
         </div>
         <div class="pixel-card">
           <h2 class="pixel-section-title">Education</h2>

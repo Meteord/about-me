@@ -29,13 +29,22 @@ export interface ContactLinks {
   github: string
 }
 
+export interface Tag {
+  label: string
+  url?: string
+}
+
 export const siteData = {
   name: 'Michael Jaumann',
   location: 'Munich',
   employer: 'KIES',
   employerUrl: 'https://ki.muenchen.de/ki-team',
   lede: "Hi, I'm Michael Jaumann. I live in Munich and work for the",
-  tags: ['Open Sourcerer', 'Spaghetti Lover', 'Running Enthusiast'],
+  tags: [
+    { label: 'Open Sourcerer' },
+    { label: 'Spaghetti Lover' },
+    { label: 'Mediocre Runner at MRRC', url: 'https://www.mrrc-muenchen.de/' },
+  ],
   education: [
     {
       degree: 'B.Sc. Computer Science',
@@ -70,7 +79,7 @@ export const siteData = {
     { label: 'Programming Languages', items: ['Python', 'Java', 'Typescript', 'C++'] },
     { label: 'Others', items: ['OpenCV', 'OpenGL', 'OMNeT++'] },
   ] as SkillGroup[],
-  hobbies: ['Running', 'Cycling', 'Dog walks'],
+  hobbies: ['Running', 'Cycling', 'Walking with my dog'],
   projects: [
     {
       name: 'MUCGPT',
@@ -156,7 +165,7 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
         `- Name: ${siteData.name}`,
         `- Location: ${siteData.location}`,
         `- Employer: ${siteData.employer} (${siteData.employerUrl})`,
-        `- Tags: ${siteData.tags.join(', ')}`,
+        `- Tags: ${siteData.tags.map((tag) => tag.label).join(', ')}`,
       ].join('\n'),
     )
   }

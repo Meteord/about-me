@@ -9,7 +9,7 @@ mkdirSync(llmsDir, { recursive: true })
 
 const aboutMd = `# About
 
-Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.muenchen.de/ki-team) team. I'm an Open Sourcerer, Spaghetti Lover, and Running Enthusiast.
+Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.muenchen.de/ki-team) team. I'm an Open Sourcerer, Spaghetti Lover, and a mediocre runner at [MRRC](https://www.mrrc-muenchen.de/).
 
 ## Education
 
@@ -31,7 +31,7 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 
 ## Hobbies
 
-Running, Cycling, Dog walks
+Running, Cycling, Walking with my dog
 `
 
 const projectsMd = `# Projects
