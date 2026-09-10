@@ -23,7 +23,7 @@ const shown = computed(() => visibleSections())
 <template>
   <main class="app-main">
     <div class="app-layout">
-      <aside class="app-dock" aria-label="Chat with Micro-Mike">
+      <aside class="app-dock" aria-label="Chat with Mini-Michi">
         <AiSection />
       </aside>
       <transition-group v-if="shown.length" tag="div" name="stack" class="app-column">

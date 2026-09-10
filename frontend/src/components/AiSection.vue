@@ -61,6 +61,14 @@ const EXAMPLES = [
   'Rotate the sections',
   'Hide the projects section',
   'Switch the theme to red',
+  'Expand all sections',
+  'Shuffle the page',
+  'Reverse the section order',
+  'How many tools do you have?',
+  'What tools can you use?',
+  'Give me a random fact',
+  'Cycle the theme',
+  'Open the tool selector',
 ]
 
 const SECTION_LABEL: Record<SectionId, string> = {
@@ -546,7 +554,7 @@ function clearChat(): void {
           type="text"
           autocomplete="off"
           :disabled="isGenerating || state.status !== 'ready'"
-          :placeholder="state.status === 'ready' ? 'Talk to Micro-Mike…' : 'Load the model first…'"
+          :placeholder="state.status === 'ready' ? 'Talk to Mini-Michi…' : 'Load the model first…'"
           aria-label="Chat message"
         />
         <button

@@ -7,6 +7,7 @@ import {
   schemaChars,
   type ToolDoc,
 } from '../tools/registry'
+import { mode, topK } from './retrievalSettings'
 
 const MODEL_ID = 'kucukkanat/LFM2.5-Encoder-350M-ONNX'
 
@@ -45,8 +46,6 @@ export interface RetrieveResult {
   stats: RetrievalStats
 }
 
-const mode = ref<RetrievalMode>('hybrid')
-const topK = ref(5)
 const lastQuery = ref('')
 const lastResult = ref<RetrieveResult | null>(null)
 const neuralState = ref<NeuralState>({

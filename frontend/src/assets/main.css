@@ -77,6 +77,68 @@ body.crt-off::after {
   display: none;
 }
 
+/* Content zoom (tool-driven via html[data-zoom]) */
+html[data-zoom='compact'] {
+  font-size: 14px;
+}
+
+html[data-zoom='comfortable'] {
+  font-size: 18px;
+}
+
+/* Background pattern (tool-driven via html[data-background]) */
+html[data-background='grid'] body {
+  background-image:
+    radial-gradient(circle at 12% 20%, #2a2118 0, #171310 45%, #0c0906 100%),
+    repeating-linear-gradient(0deg, rgba(91, 76, 60, 0.25) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(91, 76, 60, 0.25) 0 1px, transparent 1px 26px);
+  background-size:
+    auto,
+    26px 26px,
+    26px 26px;
+}
+
+html[data-background='plain'] body {
+  background-image: radial-gradient(circle at 12% 20%, #2a2118 0, #171310 45%, #0c0906 100%);
+  background-size: auto;
+}
+
+/* CRT glitch overlay (tool-driven via body.crt-glitch) */
+body.crt-glitch::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(11, 8, 5, 0.22) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(90deg, rgba(16, 12, 7, 0.15) 0 1px, transparent 1px 7px);
+  animation: pixel-glitch 0.9s steps(2, end) infinite;
+}
+
+@keyframes pixel-glitch {
+  0% {
+    opacity: 0.5;
+    transform: translate(0, 0);
+  }
+  25% {
+    opacity: 0.85;
+    transform: translate(-2px, 1px);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translate(2px, -1px);
+  }
+  75% {
+    opacity: 0.65;
+    transform: translate(-1px, 0);
+  }
+  100% {
+    opacity: 0.5;
+    transform: translate(0, 1px);
+  }
+}
+
 ::selection {
   background: var(--pixel-accent);
   color: var(--pixel-dark);
@@ -1087,7 +1149,7 @@ body.crt-off::after {
 }
 
 /* ------------------------------------------------------------------ */
-/* AI chat (Micro-Mike)                                                */
+/* AI chat (Mini-Michi)                                                */
 /* ------------------------------------------------------------------ */
 
 .ai-panel {

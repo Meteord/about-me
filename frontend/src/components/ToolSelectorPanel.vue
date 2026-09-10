@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
+import { toolSelectorOpen } from '../composables/retrievalSettings'
 import { TOOL_SCHEMAS } from '../tools/registry'
 
 const { mode, topK, lastQuery, lastResult, neural, retrieve, loadNeural } = useToolRetrieval()
@@ -27,7 +28,7 @@ const DESCRIPTION = new Map(
 
 const query = ref('')
 const busy = ref(false)
-const expanded = ref(false)
+const expanded = toolSelectorOpen
 const error = ref<string | null>(null)
 
 const toolDescription = (name: string): string => DESCRIPTION.get(name) ?? ''

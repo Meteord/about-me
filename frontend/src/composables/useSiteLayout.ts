@@ -2,6 +2,8 @@ import { nextTick, reactive } from 'vue'
 
 export type SectionId = 'about' | 'projects' | 'contact' | 'tech'
 export type ThemeName = 'amber' | 'orange' | 'red'
+export type BackgroundMode = 'dots' | 'grid' | 'plain'
+export type ZoomLevel = 'compact' | 'normal' | 'comfortable'
 
 export interface SectionState {
   id: SectionId
@@ -21,6 +23,9 @@ export interface SiteLayout {
   theme: ThemeName
   scanlines: boolean
   highlight: SectionId | null
+  glitch: boolean
+  background: BackgroundMode
+  zoom: ZoomLevel
 }
 
 const state = reactive<SiteLayout>({
@@ -28,11 +33,21 @@ const state = reactive<SiteLayout>({
   theme: 'amber',
   scanlines: true,
   highlight: null,
+  glitch: false,
+  background: 'dots',
+  zoom: 'normal',
 })
 
+const THEME_ORDER: ThemeName[] = ['amber', 'orange', 'red']
+const DEFAULT_ORDER: SectionId[] = ['about', 'projects', 'contact', 'tech']
+
 function syncDocument(): void {
-  document.documentElement.dataset.theme = state.theme
+  const root = document.documentElement
+  root.dataset.theme = state.theme
+  root.dataset.background = state.background
+  root.dataset.zoom = state.zoom
   document.body.classList.toggle('crt-off', !state.scanlines)
+  document.body.classList.toggle('crt-glitch', state.glitch)
 }
 
 function findIndex(id: SectionId): number {
@@ -51,6 +66,12 @@ export function useSiteLayout() {
   const setExpanded = (id: SectionId, expanded: boolean): void => {
     const index = findIndex(id)
     if (index !== -1) state.sections[index].expanded = expanded
+  }
+
+  const setAllExpanded = (expanded: boolean): void => {
+    state.sections.forEach((section) => {
+      section.expanded = expanded
+    })
   }
 
   const isVisible = (id: SectionId): boolean =>
@@ -95,8 +116,31 @@ export function useSiteLayout() {
     }
   }
 
+  const reverseSections = (): void => {
+    state.sections.reverse()
+  }
+
+  const shuffleSections = (): void => {
+    for (let i = state.sections.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[state.sections[i], state.sections[j]] = [state.sections[j], state.sections[i]]
+    }
+  }
+
+  const sortSections = (order: 'alphabetical' | 'default'): void => {
+    if (order === 'alphabetical') {
+      state.sections.sort((a, b) => a.id.localeCompare(b.id))
+    } else {
+      state.sections.sort((a, b) => DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id))
+    }
+  }
+
   const resetLayout = (): void => {
     state.sections = DEFAULT_SECTIONS.map((section) => ({ ...section }))
+    state.glitch = false
+    state.background = 'dots'
+    state.zoom = 'normal'
+    syncDocument()
   }
 
   const setTheme = (theme: ThemeName): void => {
@@ -104,10 +148,10 @@ export function useSiteLayout() {
     syncDocument()
   }
 
-  const cycleTheme = (): void => {
-    const order: ThemeName[] = ['amber', 'orange', 'red']
-    const next = order[(order.indexOf(state.theme) + 1) % order.length]
+  const cycleTheme = (): ThemeName => {
+    const next = THEME_ORDER[(THEME_ORDER.indexOf(state.theme) + 1) % THEME_ORDER.length]
     setTheme(next)
+    return next
   }
 
   const toggleScanlines = (): void => {
@@ -115,8 +159,38 @@ export function useSiteLayout() {
     syncDocument()
   }
 
+  const toggleGlitch = (): boolean => {
+    state.glitch = !state.glitch
+    syncDocument()
+    return state.glitch
+  }
+
+  const setBackground = (background: BackgroundMode): void => {
+    state.background = background
+    syncDocument()
+  }
+
+  const setZoom = (zoom: ZoomLevel): void => {
+    state.zoom = zoom
+    syncDocument()
+  }
+
   const reducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const scrollPage = (position: 'top' | 'bottom'): void => {
+    window.scrollTo({
+      top: position === 'top' ? 0 : document.documentElement.scrollHeight,
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    })
+  }
+
+  const flashSection = (id: SectionId): void => {
+    state.highlight = id
+    window.setTimeout(() => {
+      if (state.highlight === id) state.highlight = null
+    }, 700)
+  }
 
   const focusSection = (id: SectionId, collapseOthers = true): void => {
     if (collapseOthers) {
@@ -148,16 +222,25 @@ export function useSiteLayout() {
     isExpanded,
     toggle,
     setExpanded,
+    setAllExpanded,
     isVisible,
     setVisible,
     visibleSections,
     moveSection,
     moveSectionTo,
     rotateSections,
+    reverseSections,
+    shuffleSections,
+    sortSections,
     resetLayout,
     setTheme,
     cycleTheme,
     toggleScanlines,
+    toggleGlitch,
+    setBackground,
+    setZoom,
+    scrollPage,
+    flashSection,
     focusSection,
   }
 }
