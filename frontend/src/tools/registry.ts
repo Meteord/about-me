@@ -1,5 +1,6 @@
 import { aboutMeMarkdown, aboutTopicDescription, type AboutTopic } from '../data/siteData'
 import { useSiteLayout, type SectionId, type ThemeName } from '../composables/useSiteLayout'
+import { getSiteContent } from '../composables/useLlmsContent'
 
 /* ------------------------------------------------------------------ */
 /* Tool schemas (OpenAI-style JSON, passed into the chat template)     */
@@ -30,6 +31,25 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           topic: {
             type: 'string',
             description: `Which topic to retrieve: ${aboutTopicDescription()}`,
+            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'all'],
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'about_site',
+      description:
+        'Retrieve the site-wide narrative content about Michael Jaumann from the llms.txt files. Richer than about_me, covering bio, education, skills, hobbies, projects (MUCGPT) and contact links. Prefer this for detailed answers.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: {
+            type: 'string',
+            description:
+              'Which topic to focus on: bio, education, skills, hobbies, projects, contact, or all.',
             enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'all'],
           },
         },
@@ -96,14 +116,15 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
 export const SYSTEM_PROMPT = `You are MICRO-MIKE, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
 
 Rules:
-- Prefer calling a tool over guessing. Never invent facts about Michael — use the about_me tool.
+- Prefer calling a tool over guessing. Never invent facts about Michael — use the about_site tool (preferred) or about_me tool.
 - When you need to act, output a single tool call wrapped exactly in the markers:
   <|tool_call_start|>about_me(topic="skills")<|tool_call_end|>
 - Use Python-style keyword arguments. Strings are quoted with double quotes.
 - Call only ONE tool per turn. Wait for its result, then answer the visitor naturally.
 - Keep answers short, friendly and concise. You can use the visitor's language.
 - Tools you can call:
-  - about_me(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"all") — retrieve info about Michael.
+  - about_site(topic="all") — retrieve the rich narrative content about Michael from the site's llms.txt files (bio, education, skills, hobbies, projects like MUCGPT, contact). Prefer this for detailed or broad answers.
+  - about_me(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"all") — retrieve structured info about Michael as a fallback.
   - start_game(game="snake") — start the Snake mini-game inside the chat.
   - restructure_site(action="move"|"expand"|"collapse"|"theme"|"scanlines", target="about"|"projects"|"contact", direction="up"|"down", theme="amber"|"orange"|"red") — rearrange or restyle the website.`
 
@@ -263,6 +284,10 @@ const executors: Record<string, (args: Record<string, unknown>) => unknown | Pro
   about_me: (args) => {
     const topic = (args.topic as AboutTopic) ?? 'all'
     return aboutMeMarkdown(topic)
+  },
+
+  about_site: async () => {
+    return getSiteContent()
   },
 
   start_game: (args) => {

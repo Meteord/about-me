@@ -7,7 +7,10 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "generate:llms": "node scripts/generate-llms-txt.mjs",
+    "predev": "npm run generate:llms",
     "dev": "vite",
+    "prebuild": "npm run generate:llms",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",

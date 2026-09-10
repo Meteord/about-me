@@ -35,7 +35,8 @@ const MAX_ROUNDS = 3
 const EXAMPLES = [
   'What can you do?',
   'Tell me about Michael\u2019s education',
-  'What skills does Michael have?',
+  'What projects has Michael worked on?',
+  'How can I contact Michael?',
   'Start a game of snake',
   'Move the contact section to the top',
   'Switch the theme to red',
@@ -244,7 +245,7 @@ function clearChat(): void {
                 : state.device === 'wasm'
                   ? 'WebAssembly'
                   : 'WebGPU or WebAssembly'
-            }}. I can look up Michael's info, start games and restructure this page.
+            }}. I can look up Michael's info from the site, start games and restructure this page.
           </p>
           <div class="pixel-tags pixel-chat__examples">
             <button
