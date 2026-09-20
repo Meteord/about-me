@@ -1,4 +1,4 @@
-import{b as e}from"./chunk-BHu3j4xf.js";
+import{c as e}from"./chunk-CdtSdTt3.js";
 /**
 * Anime.js - core - ESM
 * @version v4.5.0
