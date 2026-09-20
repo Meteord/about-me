@@ -6,7 +6,6 @@ const { state, isExpanded, toggle } = useSiteLayout()
 
 const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red']
 </script>
-
 <template>
   <section
     id="about"
@@ -52,7 +51,11 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
             <template v-else>{{ tag.label }}</template>
           </span>
         </div>
-        <div class="pixel-card">
+        <div
+          id="about-education"
+          class="pixel-card"
+          :class="{ 'pixel-spotlight': state.spotlight === 'about-education' }"
+        >
           <h2 class="pixel-section-title">Education</h2>
           <ul class="pixel-list">
             <li v-for="entry in siteData.education" :key="entry.degree">
@@ -62,7 +65,11 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
             </li>
           </ul>
         </div>
-        <div class="pixel-card">
+        <div
+          id="about-skills"
+          class="pixel-card"
+          :class="{ 'pixel-spotlight': state.spotlight === 'about-skills' }"
+        >
           <h2 class="pixel-section-title">Skills</h2>
           <ul class="pixel-list">
             <li v-for="group in siteData.skills" :key="group.label">
@@ -70,7 +77,11 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
             </li>
           </ul>
         </div>
-        <div class="pixel-card">
+        <div
+          id="about-hobbies"
+          class="pixel-card"
+          :class="{ 'pixel-spotlight': state.spotlight === 'about-hobbies' }"
+        >
           <h2 class="pixel-section-title">Hobbies</h2>
           <div class="pixel-tags">
             <span

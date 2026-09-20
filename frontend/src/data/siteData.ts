@@ -22,6 +22,21 @@ export interface TechModel {
   description: string
   link: string
   tags: string[]
+  icon: 'chip' | 'funnel'
+}
+
+export interface ArticleLink {
+  label: string
+  url: string
+  description: string
+}
+
+export interface BlogPost {
+  slug: string
+  title: string
+  date: string
+  teaser: string
+  readTime: string
 }
 
 export interface ContactLinks {
@@ -100,6 +115,7 @@ export const siteData = {
         'Mini-Michi, the on-device assistant, runs LiquidAI\u2019s LFM2.5-350M-ONNX causal language model entirely in the browser via transformers.js, streamed over WebGPU or WebAssembly. No data leaves the page.',
       link: 'https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX',
       tags: ['LFM2.5-350M', 'transformers.js', 'WebGPU', 'WASM'],
+      icon: 'chip',
     },
     {
       name: 'Tool retriever — LFM2.5 prompt router',
@@ -107,15 +123,33 @@ export const siteData = {
         'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. Vector search mode scores the request against all tool names in a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8); BM25 over an alias-enriched tool index acts as an instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion.',
       link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX',
       tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'q8', 'BM25', 'RRF'],
-    },
-    {
-      name: 'Inspiration — ColBERT tool selection',
-      description:
-        'The tool-selector concept comes from LiquidAI\u2019s demo, which retrieves the top-5 most relevant tools out of 151 with a retriever instead of stuffing every schema into the context window.',
-      link: 'https://huggingface.co/spaces/LiquidAI/colbert-tool-selection',
-      tags: ['ColBERT', 'tool retrieval', 'LiquidAI demo'],
+      icon: 'funnel',
     },
   ] as TechModel[],
+  articleLinks: [
+    {
+      label: 'ColBERT tool-selection demo',
+      url: 'https://huggingface.co/spaces/LiquidAI/colbert-tool-selection',
+      description:
+        'LiquidAI\u2019s demo that inspired the tool-selector concept: it retrieves the top-5 most relevant tools out of 151 with a retriever instead of stuffing every schema into the context window.',
+    },
+    {
+      label: 'LFM2.5 retrievers blog',
+      url: 'https://www.liquid.ai/blog/lfm2-5-retrievers',
+      description:
+        'LiquidAI\u2019s blog post on prompt-routing and retrieval, the idea behind scoring a request against all tool names in a single pass.',
+    },
+  ] as ArticleLink[],
+  blog: [
+    {
+      slug: 'chat-with-my-website',
+      title: 'Chat with my website',
+      date: '2026-09-20',
+      teaser:
+        'How Mini-Michi, the on-device assistant in the dock, runs a real language model in your browser — and why it only ever sees the tool schemas it actually needs.',
+      readTime: '3 min',
+    },
+  ] as BlogPost[],
   contact: {
     linkedin: 'https://www.linkedin.com/in/michael-jaumann-a4736a263/',
     github: 'https://github.com/Meteord',
@@ -129,7 +163,7 @@ export type AboutTopic =
   | 'hobbies'
   | 'projects'
   | 'contact'
-  | 'tech'
+  | 'blog'
   | 'all'
 
 const TOPICS: Record<AboutTopic, string> = {
@@ -139,7 +173,7 @@ const TOPICS: Record<AboutTopic, string> = {
   hobbies: 'personal hobbies',
   projects: 'open source projects he works on',
   contact: 'social and professional links',
-  tech: 'how this website works and which models power it',
+  blog: 'blog articles, like how this website works and which models power it',
   all: 'all available information about Michael',
 }
 
@@ -219,13 +253,27 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
     )
   }
 
-  if (wants('tech')) {
+  if (wants('blog')) {
     blocks.push(
-      ['## How this site works']
+      ['## Blog']
+        .concat(siteData.blog.map((post) => `- "${post.title}" (${post.date}): ${post.teaser}`))
+        .join('\n'),
+    )
+    blocks.push(
+      ['## Models powering this site']
         .concat(
           siteData.tech.map(
             (model) =>
               `- ${model.name}: ${model.description} Link: ${model.link}. Tags: ${model.tags.join(', ')}`,
+          ),
+        )
+        .join('\n'),
+    )
+    blocks.push(
+      ['## Article links']
+        .concat(
+          siteData.articleLinks.map(
+            (link) => `- [${link.label}](${link.url}): ${link.description}`,
           ),
         )
         .join('\n'),

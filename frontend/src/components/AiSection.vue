@@ -71,25 +71,19 @@ const EXAMPLES = [
   'What projects has Michael worked on?',
   'How can I contact Michael?',
   'How does this site work?',
-  'Move contact to the top',
-  'Rotate the sections',
-  'Hide the projects section',
+  'Show me Michael\u2019s skills',
   'Switch the theme to red',
-  'Expand all sections',
-  'Shuffle the page',
-  'Reverse the section order',
+  'Show me some statistics',
   'How many tools do you have?',
-  'What tools can you use?',
   'Give me a random fact',
-  'Cycle the theme',
-  'Open the tool selector',
 ]
 
 const SECTION_LABEL: Record<SectionId, string> = {
   about: 'About',
   projects: 'Projects',
   contact: 'Contact',
-  tech: 'How it works',
+  blog: 'Blog',
+  visuals: 'Visuals',
 }
 
 const suggestions = ref<string[]>([])
@@ -138,6 +132,23 @@ function resultSection(results: ToolResult[]): SectionId | null {
   return null
 }
 
+interface SpotlightHint {
+  section: SectionId
+  target?: string
+}
+
+function spotlightHint(results: ToolResult[]): SpotlightHint | null {
+  for (const result of results) {
+    const payload = result.result as
+      | { section?: SectionId; spotlight?: boolean; target?: string }
+      | undefined
+    if (payload?.spotlight && payload.section) {
+      return { section: payload.section, target: payload.target }
+    }
+  }
+  return null
+}
+
 function isContactResult(results: ToolResult[]): boolean {
   return results.some((result) => result.kind === 'contact')
 }
@@ -155,6 +166,11 @@ function prunedPercent(stats: RetrievalStats): number {
 function jumpTo(results: ToolResult[]): void {
   const section = resultSection(results)
   if (section) focusSection(section)
+}
+
+function autoSpotlight(results: ToolResult[]): void {
+  const hint = spotlightHint(results)
+  if (hint) focusSection(hint.section, { target: hint.target })
 }
 
 function escapeHtml(text: string): string {
@@ -334,6 +350,8 @@ async function handleSend(raw?: string): Promise<void> {
         role: 'tool',
         content: JSON.stringify(results.map((result) => result.result ?? result.error ?? null)),
       })
+
+      autoSpotlight(results)
 
       const index = messages.value.findIndex((message) => message.id === placeholderId)
       if (index !== -1) {
@@ -596,8 +614,8 @@ async function retryModel(): Promise<void> {
                 : state.device === 'wasm'
                   ? 'WebAssembly'
                   : 'WebGPU or WebAssembly'
-            }}. I can look up Michael's info from the site, jump straight to the relevant section,
-            and rearrange this page — move, rotate, hide or restyle sections.
+            }}. Ask me anything about Michael — I'll look it up and bring the right section into
+            view. I can also recolor the page or show you the statistics dashboard.
           </p>
           <div class="pixel-tags pixel-chat__examples">
             <button

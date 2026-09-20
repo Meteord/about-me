@@ -1,8 +1,7 @@
 import { nextTick, reactive } from 'vue'
 
-export type SectionId = 'about' | 'projects' | 'contact' | 'tech'
+export type SectionId = 'about' | 'projects' | 'contact' | 'blog' | 'visuals'
 export type ThemeName = 'amber' | 'orange' | 'red'
-export type BackgroundMode = 'dots' | 'grid' | 'plain'
 export type ZoomLevel = 'compact' | 'normal' | 'comfortable'
 
 export interface SectionState {
@@ -15,43 +14,41 @@ export const DEFAULT_SECTIONS: SectionState[] = [
   { id: 'about', expanded: true, visible: true },
   { id: 'projects', expanded: false, visible: true },
   { id: 'contact', expanded: false, visible: true },
-  { id: 'tech', expanded: false, visible: true },
+  { id: 'blog', expanded: false, visible: true },
+  { id: 'visuals', expanded: false, visible: true },
 ]
 
 export interface SiteLayout {
   sections: SectionState[]
   theme: ThemeName
-  scanlines: boolean
   highlight: SectionId | null
-  glitch: boolean
-  background: BackgroundMode
+  spotlight: string | null
   zoom: ZoomLevel
 }
 
 const state = reactive<SiteLayout>({
   sections: DEFAULT_SECTIONS.map((section) => ({ ...section })),
   theme: 'amber',
-  scanlines: true,
   highlight: null,
-  glitch: false,
-  background: 'dots',
+  spotlight: null,
   zoom: 'normal',
 })
 
 const THEME_ORDER: ThemeName[] = ['amber', 'orange', 'red']
-const DEFAULT_ORDER: SectionId[] = ['about', 'projects', 'contact', 'tech']
 
 function syncDocument(): void {
   const root = document.documentElement
   root.dataset.theme = state.theme
-  root.dataset.background = state.background
   root.dataset.zoom = state.zoom
-  document.body.classList.toggle('crt-off', !state.scanlines)
-  document.body.classList.toggle('crt-glitch', state.glitch)
 }
 
 function findIndex(id: SectionId): number {
   return state.sections.findIndex((section) => section.id === id)
+}
+
+export interface FocusOptions {
+  collapseOthers?: boolean
+  target?: string
 }
 
 export function useSiteLayout() {
@@ -105,40 +102,8 @@ export function useSiteLayout() {
     return true
   }
 
-  const rotateSections = (direction: 'next' | 'prev'): void => {
-    if (state.sections.length < 2) return
-    if (direction === 'next') {
-      const [section] = state.sections.splice(0, 1)
-      state.sections.push(section)
-    } else {
-      const section = state.sections.pop()
-      if (section) state.sections.unshift(section)
-    }
-  }
-
-  const reverseSections = (): void => {
-    state.sections.reverse()
-  }
-
-  const shuffleSections = (): void => {
-    for (let i = state.sections.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[state.sections[i], state.sections[j]] = [state.sections[j], state.sections[i]]
-    }
-  }
-
-  const sortSections = (order: 'alphabetical' | 'default'): void => {
-    if (order === 'alphabetical') {
-      state.sections.sort((a, b) => a.id.localeCompare(b.id))
-    } else {
-      state.sections.sort((a, b) => DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id))
-    }
-  }
-
   const resetLayout = (): void => {
     state.sections = DEFAULT_SECTIONS.map((section) => ({ ...section }))
-    state.glitch = false
-    state.background = 'dots'
     state.zoom = 'normal'
     syncDocument()
   }
@@ -152,22 +117,6 @@ export function useSiteLayout() {
     const next = THEME_ORDER[(THEME_ORDER.indexOf(state.theme) + 1) % THEME_ORDER.length]
     setTheme(next)
     return next
-  }
-
-  const toggleScanlines = (): void => {
-    state.scanlines = !state.scanlines
-    syncDocument()
-  }
-
-  const toggleGlitch = (): boolean => {
-    state.glitch = !state.glitch
-    syncDocument()
-    return state.glitch
-  }
-
-  const setBackground = (background: BackgroundMode): void => {
-    state.background = background
-    syncDocument()
   }
 
   const setZoom = (zoom: ZoomLevel): void => {
@@ -192,7 +141,12 @@ export function useSiteLayout() {
     }, 700)
   }
 
-  const focusSection = (id: SectionId, collapseOthers = true): void => {
+  const clearSpotlight = (): void => {
+    state.spotlight = null
+  }
+
+  const focusSection = (id: SectionId, options: FocusOptions = {}): void => {
+    const { collapseOthers = true, target } = options
     if (collapseOthers) {
       state.sections.forEach((section) => {
         section.expanded = section.id === id
@@ -203,16 +157,23 @@ export function useSiteLayout() {
     }
 
     state.highlight = id
+    if (target) state.spotlight = target
     nextTick(() => {
-      document.getElementById(id)?.scrollIntoView({
+      const el = target ? document.getElementById(target) : null
+      const fallback = document.getElementById(id)
+      ;(el ?? fallback)?.scrollIntoView({
         behavior: reducedMotion ? 'auto' : 'smooth',
-        block: 'start',
+        block: el ? 'center' : 'start',
       })
     })
 
-    window.setTimeout(() => {
-      state.highlight = null
-    }, 700)
+    window.setTimeout(
+      () => {
+        if (state.highlight === id) state.highlight = null
+        if (target && state.spotlight === target) clearSpotlight()
+      },
+      target ? 1400 : 700,
+    )
   }
 
   syncDocument()
@@ -228,19 +189,13 @@ export function useSiteLayout() {
     visibleSections,
     moveSection,
     moveSectionTo,
-    rotateSections,
-    reverseSections,
-    shuffleSections,
-    sortSections,
     resetLayout,
     setTheme,
     cycleTheme,
-    toggleScanlines,
-    toggleGlitch,
-    setBackground,
     setZoom,
     scrollPage,
     flashSection,
     focusSection,
+    clearSpotlight,
   }
 }

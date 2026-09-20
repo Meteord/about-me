@@ -18,11 +18,11 @@ const MODE_LABEL: Record<RetrievalMode, string> = {
 }
 
 const SAMPLES = [
-  'Move contact to the top',
   'Tell me about MUCGPT',
   'Switch the theme to red',
-  'Toggle the scanlines',
   'What education does Michael have?',
+  'Show me a skills chart',
+  'How can I contact Michael?',
 ]
 
 const TOTAL = TOOL_SCHEMAS.length
