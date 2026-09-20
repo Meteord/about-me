@@ -1,4 +1,4 @@
-import { aboutTopicDescription, siteData, type AboutTopic } from '../data/siteData'
+import { aboutTopicDescription, type AboutTopic } from '../data/siteData'
 import { useSiteLayout, type SectionId, type ThemeName } from '../composables/useSiteLayout'
 import { getSiteContent } from '../composables/useLlmsContent'
 
@@ -55,18 +55,6 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
       },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'show_stats',
-      description:
-        'Show the statistics dashboard in the Visuals section: site facts (tool count, sections, theme) plus a skills-per-category chart, and collapse the other sections so the dashboard is centered on screen. Example: show_stats()',
-      parameters: {
-        type: 'object',
-        properties: {},
-      },
-    },
-  },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -79,8 +67,6 @@ const TOOL_GUIDE: Record<string, string> = {
   retrieve:
     'retrieve(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"blog"|"all") — look up info about Michael AND bring the matching section into view (expands it, spotlights the content, collapses the other sections). Use for any question about Michael.',
   set_theme: 'set_theme(theme="amber"|"orange"|"red") — switch the accent color theme.',
-  show_stats:
-    'show_stats() — show the statistics dashboard (site facts + skills chart) in the Visuals section, centered on screen.',
 }
 
 export function buildSystemPrompt(selectedNames: string[] = ALL_TOOL_NAMES): string {
@@ -311,66 +297,6 @@ const executors: Record<string, (args: Record<string, unknown>) => unknown | Pro
     setTheme(theme)
     return { kind: 'layout', theme }
   },
-
-  show_stats: () => {
-    const { state, setVisible, setExpanded, focusSection } = useSiteLayout()
-    // Only the Visuals dashboard stays on screen.
-    state.sections.forEach((entry) => {
-      entry.visible = entry.id === 'visuals'
-      entry.expanded = entry.id === 'visuals'
-    })
-    if (!state.sections.some((entry) => entry.id === 'visuals')) {
-      setVisible('visuals', true)
-      setExpanded('visuals', true)
-    }
-    focusSection('visuals', { collapseOthers: false })
-
-    const visible = state.sections.filter((entry) => entry.visible)
-    return {
-      kind: 'layout',
-      section: 'visuals',
-      message: `Site facts: ${TOOL_SCHEMAS.length} tools · ${visible.length}/${state.sections.length} sections visible · theme: ${state.theme}. Skills: ${siteSkillSummary()}`,
-      topic: 'stats',
-      spotlight: true,
-      text: `Tool count: ${TOOL_SCHEMAS.length}. Sections: ${state.sections
-        .map((entry) => entry.id)
-        .join(', ')}. Theme: ${state.theme}. ${siteSkillSummary()}`,
-    }
-  },
-}
-
-function siteSkillSummary(): string {
-  const rows = skillsChartRows()
-  return rows
-    .slice(0, 3)
-    .map((row) => `${row.label}: ${row.count}`)
-    .join(', ')
-}
-
-/* ------------------------------------------------------------------ */
-/* Skills chart data (shared with the Visuals section)                 */
-/* ------------------------------------------------------------------ */
-
-export interface SkillChartRow {
-  label: string
-  count: number
-  items: string[]
-  percent: number
-  variant: string
-}
-
-const BAR_VARIANTS = ['viz-bar--amber', 'viz-bar--orange', 'viz-bar--red']
-
-export function skillsChartRows(): SkillChartRow[] {
-  const groups = siteData.skills
-  const max = Math.max(...groups.map((group) => group.items.length), 1)
-  return groups.map((group, index) => ({
-    label: group.label,
-    count: group.items.length,
-    items: group.items,
-    percent: Math.round((group.items.length / max) * 100),
-    variant: BAR_VARIANTS[index % BAR_VARIANTS.length],
-  }))
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,8 +316,6 @@ const TOOL_ALIASES: Record<string, string> = {
     'who is michael, tell me about yourself, bio, background, career, education, degree, study, university, school, thesis, skills, tech stack, programming languages, hobbies, free time, running, cycling, dog, projects, mucgpt, chatbot munich, how to reach, email, linkedin, github, contact, blog, article, how does this page work, how the site works, what is this page, chat model, how fast is the chat model, on-device, webgpu, wasm',
   set_theme:
     'dark mode, color, colour, accent, red theme, orange theme, amber theme, recolor, palette, next color, switch color, change palette, another theme, change the look, recolor the page',
-  show_stats:
-    'statistics, stats, dashboard, numbers, facts, how many tools, how many skills, skill chart, skills chart, bar chart, diagram, visualize skills, capabilities, site status, overview of the site, show data',
 }
 
 function toolDocText(schema: ToolSchema): string {

@@ -9,7 +9,6 @@ import ContactSection from './components/ContactSection.vue'
 import BlogSection from './components/BlogSection.vue'
 import BlogPostPage from './components/BlogPostPage.vue'
 import ProjectsPage from './components/ProjectsPage.vue'
-import VisualsSection from './components/VisualsSection.vue'
 import AiSection from './components/AiSection.vue'
 
 const { visibleSections } = useSiteLayout()
@@ -17,10 +16,9 @@ const { route } = useHashRoute()
 
 const components: Record<SectionId, Component> = {
   about: AboutSection,
+  blog: BlogSection,
   projects: ProjectsSection,
   contact: ContactSection,
-  blog: BlogSection,
-  visuals: VisualsSection,
 }
 
 const shown = computed(() => visibleSections())

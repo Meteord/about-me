@@ -1,6 +1,6 @@
 import { aboutMeMarkdown } from '../data/siteData'
 
-const LLMS_FILES = ['about.md', 'projects.md', 'contact.md', 'blog.md', 'visuals.md']
+const LLMS_FILES = ['about.md', 'projects.md', 'contact.md', 'blog.md']
 
 let cached: string | null = null
 

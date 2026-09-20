@@ -76,24 +76,10 @@ This page has no backend: everything runs on-device in the visitor's browser via
 - [LFM2.5 retrievers blog](https://www.liquid.ai/blog/lfm2-5-retrievers): LiquidAI's blog post on prompt-routing and retrieval, the idea behind scoring a request against all tool names in a single pass.
 `
 
-const visualsMd = `# Visuals
-
-The Visuals section of this page is the statistics dashboard. The Mini-Michi chat can bring it into view with the show_stats tool, collapsing the other sections.
-
-## Site statistics
-
-Live facts about this site: tool count, section count, skill and project counts, and the active color theme.
-
-## Skills chart
-
-A horizontal bar chart of Michael's skill groups, one bar per category (Machine Learning, GenAI Frameworks, Frontend, Backend, DevOps, Programming Languages, Others), where each bar segment stands for one skill in that category.
-`
-
 writeFileSync(join(llmsDir, 'about.md'), aboutMd)
 writeFileSync(join(llmsDir, 'projects.md'), projectsMd)
 writeFileSync(join(llmsDir, 'contact.md'), contactMd)
 writeFileSync(join(llmsDir, 'blog.md'), blogMd)
-writeFileSync(join(llmsDir, 'visuals.md'), visualsMd)
 
 const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 
@@ -102,10 +88,9 @@ const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.
 - [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies.
+- [Blog](llms/blog.md): Articles, including "Chat with my website" — the on-device models powering this page (chat model + tool retriever).
 - [Projects](llms/projects.md): MUCGPT, Munich's open-source AI chatbot for citizens.
 - [Contact](llms/contact.md): LinkedIn and GitHub profiles.
-- [Blog](llms/blog.md): Articles, including "Chat with my website" — the on-device models powering this page (chat model + tool retriever).
-- [Visuals](llms/visuals.md): The statistics dashboard — site facts and the skills bar chart Mini-Michi can bring into view.
 - [GitHub](https://github.com/Meteord): Michael Jaumann's GitHub profile.
 - [LinkedIn](https://www.linkedin.com/in/michael-jaumann-a4736a263/): Michael Jaumann's LinkedIn profile.
 - [KIES](https://ki.muenchen.de/ki-team): The team Michael works for in Munich.

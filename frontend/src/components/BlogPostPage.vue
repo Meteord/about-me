@@ -49,7 +49,6 @@ const flowNodes = [
 
 const rankRows = [
   { name: 'retrieve', score: 96, hit: true },
-  { name: 'show_stats', score: 41, hit: false },
   { name: 'set_theme', score: 12, hit: false },
 ]
 

@@ -73,17 +73,15 @@ const EXAMPLES = [
   'How does this site work?',
   'Show me Michael\u2019s skills',
   'Switch the theme to red',
-  'Show me some statistics',
-  'How many tools do you have?',
+  'Where does Michael work?',
   'Give me a random fact',
 ]
 
 const SECTION_LABEL: Record<SectionId, string> = {
   about: 'About',
+  blog: 'Blog',
   projects: 'Projects',
   contact: 'Contact',
-  blog: 'Blog',
-  visuals: 'Visuals',
 }
 
 const suggestions = ref<string[]>([])
