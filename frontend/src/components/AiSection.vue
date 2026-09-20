@@ -2,6 +2,7 @@
 import { nextTick, onMounted, ref, watch } from 'vue'
 import { useChatModel, CancelledError } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
+import { blogHref, projectsHref } from '../composables/useHashRoute'
 import {
   useToolRetrieval,
   type RetrievalStats,
@@ -11,9 +12,8 @@ import { siteData } from '../data/siteData'
 import {
   TOOL_SCHEMAS,
   buildSystemPrompt,
-  extractToolCallContent,
-  extractPythonicCalls,
   executeToolCall,
+  extractToolCalls,
   pruneSchemas,
   type ToolResult,
 } from '../tools/registry'
@@ -151,6 +151,19 @@ function isContactResult(results: ToolResult[]): boolean {
   return results.some((result) => result.kind === 'contact')
 }
 
+interface PageRoute {
+  name: 'blog' | 'projects'
+  slug?: string | null
+}
+
+function pageRoute(results: ToolResult[]): PageRoute | null {
+  for (const result of results) {
+    const route = (result.result as { route?: PageRoute } | undefined)?.route
+    if (route) return route
+  }
+  return null
+}
+
 const TOOL_DESCRIPTION = new Map(
   TOOL_SCHEMAS.map((tool) => [tool.function.name, tool.function.description]),
 )
@@ -166,7 +179,20 @@ function jumpTo(results: ToolResult[]): void {
   if (section) focusSection(section)
 }
 
+function pageHref(route: PageRoute): string {
+  return route.name === 'projects' ? projectsHref() : blogHref(route.slug ?? undefined)
+}
+
+function pageLabel(route: PageRoute): string {
+  return route.name === 'projects' ? 'View projects page' : 'View blog post'
+}
+
 function autoSpotlight(results: ToolResult[]): void {
+  const route = pageRoute(results)
+  if (route) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
   const hint = spotlightHint(results)
   if (hint) focusSection(hint.section, { target: hint.target })
 }
@@ -331,15 +357,14 @@ async function handleSend(raw?: string): Promise<void> {
       }
       modelMessages.value.push({ role: 'assistant', content: response })
 
-      const toolCallContent = extractToolCallContent(response)
-      if (!toolCallContent) {
+      const calls = extractToolCalls(response)
+      if (calls.length === 0) {
         const current = messages.value.find((message) => message.id === placeholderId)
         if (current && current.role === 'assistant') current.content = streamed
         generatingId.value = null
         break
       }
 
-      const calls = extractPythonicCalls(toolCallContent)
       const results: ToolResult[] = []
       for (const call of calls) {
         results.push(await executeToolCall(call))
@@ -499,8 +524,15 @@ async function retryModel(): Promise<void> {
                 {{ toolNote(message.results) }}
               </p>
               <p class="pixel-msg__dim">{{ summarizeResults(message.results) }}</p>
+              <a
+                v-if="pageRoute(message.results)"
+                :href="pageHref(pageRoute(message.results) as PageRoute)"
+                class="pixel-link-btn pixel-msg__jump"
+              >
+                {{ pageLabel(pageRoute(message.results) as PageRoute) }}
+              </a>
               <button
-                v-if="resultSection(message.results)"
+                v-else-if="resultSection(message.results)"
                 class="pixel-link-btn pixel-msg__jump"
                 type="button"
                 @click="jumpTo(message.results)"

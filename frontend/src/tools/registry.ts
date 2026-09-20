@@ -1,6 +1,7 @@
-import { aboutTopicDescription, type AboutTopic } from '../data/siteData'
-import { useSiteLayout, type SectionId, type ThemeName } from '../composables/useSiteLayout'
-import { getSiteContent } from '../composables/useLlmsContent'
+import { nextTick } from 'vue'
+import type { AboutTopic } from '../data/siteData'
+import { useSiteLayout, type ThemeName } from '../composables/useSiteLayout'
+import { findContentItem, getContentById, listContentItems } from '../composables/useLlmsContent'
 
 /* ------------------------------------------------------------------ */
 /* Tool schemas (OpenAI-style JSON, passed into the chat template)     */
@@ -18,20 +19,40 @@ export interface ToolSchema {
   }
 }
 
+const CONTENT_IDS = listContentItems().map((item) => item.id)
+
 export const TOOL_SCHEMAS: ToolSchema[] = [
   {
     type: 'function',
     function: {
-      name: 'retrieve',
+      name: 'list_contents',
       description:
-        'Retrieve information about Michael Jaumann and bring the matching section into view: expands the right section, spotlights the relevant content card and collapses all other sections so the answer is the only thing on screen. Use this for ANY question about Michael (bio, education, skills, hobbies, projects like MUCGPT — its own page reachable from the Projects section, contact links, the blog / how this site works). Example: retrieve(topic="skills")',
+        'List every piece of retrievable content on the site — the About, Projects, Contact and Blog sections plus each blog article — with a one-line description. Call this first to discover the available content ids before calling get_content. Does not change the page. Example: list_contents()',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_content',
+      description:
+        'Fetch the full content for a content id and bring it into view on the right: navigates to the blog post page for a blog article, the projects page for projects, or expands and spotlights the matching section on the home page. Use list_contents first to discover the available content ids. Example: get_content(id="about", topic="skills")',
       parameters: {
         type: 'object',
         properties: {
+          id: {
+            type: 'string',
+            description: 'Which content to retrieve. The available ids come from list_contents.',
+            enum: CONTENT_IDS,
+          },
           topic: {
             type: 'string',
-            description: `Which topic to retrieve: ${aboutTopicDescription()}`,
-            enum: ['bio', 'education', 'skills', 'hobbies', 'projects', 'contact', 'blog', 'all'],
+            description:
+              'Optional: narrow the About content to one topic and spotlight its card. Only used when id="about".',
+            enum: ['bio', 'education', 'skills', 'hobbies'],
           },
         },
       },
@@ -64,8 +85,10 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
 export const ALL_TOOL_NAMES: string[] = TOOL_SCHEMAS.map((tool) => tool.function.name)
 
 const TOOL_GUIDE: Record<string, string> = {
-  retrieve:
-    'retrieve(topic="bio"|"education"|"skills"|"hobbies"|"projects"|"contact"|"blog"|"all") — look up info about Michael AND bring the matching section into view (expands it, spotlights the content, collapses the other sections). Use for any question about Michael.',
+  list_contents:
+    'list_contents() — list every retrievable content item with a one-line description. Call this first when you are not sure what content exists.',
+  get_content:
+    'get_content(id="about"|"projects"|"contact"|"blog"|"blog:<slug>"[, topic="skills"]) — fetch the full content for a content id AND bring it into view on the right (opens the blog post or projects page, or expands + spotlights the matching section). Use topic only when id="about".',
   set_theme: 'set_theme(theme="amber"|"orange"|"red") — switch the accent color theme.',
 }
 
@@ -73,14 +96,20 @@ export function buildSystemPrompt(selectedNames: string[] = ALL_TOOL_NAMES): str
   const tools = selectedNames.map((name) => `  - ${TOOL_GUIDE[name] ?? name}`).join('\n')
   return `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
 
+How to answer questions about Michael:
+1. If you know what to fetch, call get_content(id=...) directly, e.g. get_content(id="about", topic="skills"). The tool returns the real content AND brings the matching section or page into view on the right.
+2. If you don't know which content exists, call list_contents() first to see the available content ids and their short descriptions, then call get_content(id=...) on the next turn with the right id.
+3. Answer the visitor from the returned content. Never invent facts about Michael.
+
 Rules:
-- Prefer calling a tool over guessing. Never invent facts about Michael — use the retrieve tool.
-- When you need to act, output a single tool call wrapped exactly in the markers:
-  <|tool_call_start|>retrieve(topic="skills")<|tool_call_end|>
+- When you need to act, output one or more tool calls wrapped exactly in the markers, one call per block:
+  <|tool_call_start|>get_content(id="about", topic="skills")<|tool_call_end|>
+  <|tool_call_start|>set_theme(theme="red")<|tool_call_end|>
 - Use Python-style keyword arguments. Strings are quoted with double quotes.
-- Call only ONE tool per turn. Wait for its result, then answer the visitor naturally.
+- You may call SEVERAL independent tools in one turn (each call in its own block). Do NOT bundle calls where one depends on another's result — wait for the previous result and call the next tool in the following turn.
+- After the tools return, answer the visitor naturally.
 - Keep answers short, friendly and concise. You can use the visitor's language.
-- Tools you can call (ONE per turn):
+- Tools you can call:
 ${tools}`
 }
 
@@ -131,9 +160,14 @@ function parseArguments(argsString: string): string[] {
   return args
 }
 
-export function extractToolCallContent(content: string): string | null {
-  const match = content.match(/<\|tool_call_start\|>(.*?)<\|tool_call_end\|>/s)
-  return match ? match[1].trim() : null
+/** Extract every tool-call block in a response, so the model can emit several
+    independent calls in a single turn. Each block may itself hold a list. */
+export function extractToolCalls(content: string): string[] {
+  const calls: string[] = []
+  for (const match of content.matchAll(/<\|tool_call_start\|>(.*?)<\|tool_call_end\|>/gs)) {
+    calls.push(...extractPythonicCalls(match[1].trim()))
+  }
+  return calls
 }
 
 export function extractPythonicCalls(toolCallContent: string): string[] {
@@ -212,7 +246,7 @@ export interface ToolResult {
   kind: ToolResultKind
 }
 
-export type ToolResultKind = 'text' | 'contact' | 'layout'
+export type ToolResultKind = 'text' | 'contact' | 'layout' | 'page'
 
 export async function executeToolCall(call: string): Promise<ToolResult> {
   const parsed = parsePythonicCalls(call)
@@ -239,50 +273,76 @@ export async function executeToolCall(call: string): Promise<ToolResult> {
   }
 }
 
-/* Which pixel-window each topic lives in, and which content card inside the
-   About window should be spotlit. */
-const TOPIC_SECTION: Record<string, SectionId> = {
-  bio: 'about',
-  education: 'about',
-  skills: 'about',
-  hobbies: 'about',
-  projects: 'projects',
-  contact: 'contact',
-  blog: 'blog',
-}
-
+/* Which content card inside the About window should be spotlit per topic. */
 const TOPIC_SPOTLIGHT: Record<string, string> = {
   education: 'about-education',
   skills: 'about-skills',
   hobbies: 'about-hobbies',
 }
 
-function sectionForTopic(topic: AboutTopic): SectionId {
-  return TOPIC_SECTION[topic] ?? 'about'
+/** Yield to the event loop so a hashchange → route → re-render settles first. */
+function waitForRoute(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 const executors: Record<string, (args: Record<string, unknown>) => unknown | Promise<unknown>> = {
-  retrieve: async (args) => {
-    const { state, setVisible, setExpanded, focusSection } = useSiteLayout()
-    const topic = (args.topic as AboutTopic) ?? 'all'
-    const content = await getSiteContent()
-    const section = sectionForTopic(topic)
-    const target = TOPIC_SPOTLIGHT[topic]
-
-    // The combined view action: only the matching section stays on screen.
-    state.sections.forEach((entry) => {
-      entry.visible = entry.id === section
-      entry.expanded = entry.id === section
-    })
-    if (!state.sections.some((entry) => entry.id === section)) {
-      setVisible(section, true)
-      setExpanded(section, true)
-    }
-    focusSection(section, { collapseOthers: false, target })
-
+  list_contents: () => {
+    const items = listContentItems()
     return {
-      kind: topic === 'contact' ? 'contact' : 'text',
-      section,
+      kind: 'text',
+      text: items.map((item) => `- ${item.id}: ${item.title} — ${item.description}`).join('\n'),
+    }
+  },
+
+  get_content: async (args) => {
+    const id = (args.id as string) ?? 'about'
+    const item = findContentItem(id)
+    if (!item) {
+      return {
+        kind: 'text',
+        error: `Unknown content id "${id}". Call list_contents first to see the available ids.`,
+      }
+    }
+
+    if (item.kind === 'page') {
+      const href =
+        item.section === 'projects' ? '#/projects' : item.slug ? `#/blog/${item.slug}` : '#'
+      window.location.hash = href
+      const content = await getContentById(id)
+      return {
+        kind: 'page',
+        section: item.section,
+        route:
+          item.section === 'projects'
+            ? { name: 'projects', slug: null }
+            : { name: 'blog', slug: item.slug ?? null },
+        text: content,
+      }
+    }
+
+    // Section content: return to home and bring the section into view.
+    const hashChanged = window.location.hash !== ''
+    if (hashChanged) window.location.hash = ''
+    const topic = (args.topic as AboutTopic | undefined) ?? undefined
+    const target = topic ? TOPIC_SPOTLIGHT[topic] : undefined
+
+    const { state, setVisible, setExpanded, focusSection } = useSiteLayout()
+    state.sections.forEach((entry) => {
+      entry.visible = entry.id === item.section
+      entry.expanded = entry.id === item.section
+    })
+    if (!state.sections.some((entry) => entry.id === item.section)) {
+      setVisible(item.section, true)
+      setExpanded(item.section, true)
+    }
+    if (hashChanged) await waitForRoute()
+    await nextTick()
+    focusSection(item.section, { collapseOthers: false, target })
+
+    const content = await getContentById(id)
+    return {
+      kind: item.section === 'contact' ? 'contact' : 'text',
+      section: item.section,
       topic,
       spotlight: true,
       target,
@@ -312,8 +372,10 @@ export interface ToolDoc {
    appended to the doc text so both BM25 and the vector-search retriever can match
    queries that never literally say the tool name. */
 const TOOL_ALIASES: Record<string, string> = {
-  retrieve:
-    'who is michael, tell me about yourself, bio, background, career, education, degree, study, university, school, thesis, skills, tech stack, programming languages, hobbies, free time, running, cycling, dog, projects, mucgpt, chatbot munich, how to reach, email, linkedin, github, contact, blog, article, how does this page work, how the site works, what is this page, chat model, how fast is the chat model, on-device, webgpu, wasm',
+  list_contents:
+    'what can you do, what do you know, what is available, available content, list, list all, catalog, index, overview, give me an overview, site overview, what is on this page, contents, all content, everything on the site, statistics, numbers, blog articles, list of articles, show all, surprise me, explore',
+  get_content:
+    'who is michael, tell me about yourself, bio, background, career, education, degree, study, university, school, thesis, skills, tech stack, programming languages, hobbies, free time, running, cycling, dog, projects, mucgpt, chatbot munich, how to reach, email, linkedin, github, contact, blog, blog post, article, how does this page work, how the site works, what is this page, chat model, how fast is the chat model, on-device, webgpu, wasm',
   set_theme:
     'dark mode, color, colour, accent, red theme, orange theme, amber theme, recolor, palette, next color, switch color, change palette, another theme, change the look, recolor the page',
 }
