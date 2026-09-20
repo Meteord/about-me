@@ -36,6 +36,8 @@ Running, Cycling, Walking with my dog
 
 const projectsMd = `# Projects
 
+Michael's open-source projects live on their own page on this site (\`#/projects\`), reachable from the "Projects" window on the home desktop via the "All projects" link.
+
 ## MUCGPT
 
 MUCGPT is Munich's open-source AI chatbot for citizens, enabling secure and customizable interactions with large language models. Users can create and share their own assistants, with roles and rights managed via Single Sign-On. The platform is designed for extensibility, privacy, and ease of use in public sector applications.

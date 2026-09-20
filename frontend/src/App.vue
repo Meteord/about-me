@@ -8,6 +8,7 @@ import ProjectsSection from './components/ProjectsSection.vue'
 import ContactSection from './components/ContactSection.vue'
 import BlogSection from './components/BlogSection.vue'
 import BlogPostPage from './components/BlogPostPage.vue'
+import ProjectsPage from './components/ProjectsPage.vue'
 import VisualsSection from './components/VisualsSection.vue'
 import AiSection from './components/AiSection.vue'
 
@@ -26,6 +27,7 @@ const shown = computed(() => visibleSections())
 const blogPost = computed(() =>
   route.value.name === 'blog' && route.value.slug ? route.value.slug : null,
 )
+const onProjects = computed(() => route.value.name === 'projects')
 </script>
 
 <template>
@@ -36,6 +38,14 @@ const blogPost = computed(() =>
       </aside>
       <transition-group v-if="blogPost" tag="div" name="stack" class="app-column app-column--wide">
         <BlogPostPage :key="`blog-${blogPost}`" :slug="blogPost" />
+      </transition-group>
+      <transition-group
+        v-else-if="onProjects"
+        tag="div"
+        name="stack"
+        class="app-column app-column--wide"
+      >
+        <ProjectsPage :key="'projects-page'" />
       </transition-group>
       <transition-group v-else-if="shown.length" tag="div" name="stack" class="app-column">
         <component v-for="section in shown" :is="components[section.id]" :key="section.id" />

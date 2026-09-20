@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { useSiteLayout } from '../composables/useSiteLayout'
+import { projectsHref } from '../composables/useHashRoute'
 import { siteData } from '../data/siteData'
 
 const { state, isExpanded, toggle } = useSiteLayout()
 
-const project = siteData.projects[0]
+const featured = siteData.projects[0]
+
+const teaserText =
+  featured.description.length > 140
+    ? featured.description.slice(0, 137) + '…'
+    : featured.description
 </script>
 
 <template>
@@ -26,37 +32,10 @@ const project = siteData.projects[0]
     </button>
     <transition name="fade">
       <div v-if="isExpanded('projects')" id="projects-content" class="pixel-window__content">
-        <div class="project-grid">
-          <div class="project-grid__main project-card">
-            <div>
-              <h3 class="project-card__title">{{ project.name }}</h3>
-              <p class="project-card__desc">{{ project.description }}</p>
-            </div>
-            <a
-              :href="project.link"
-              target="_blank"
-              rel="noopener"
-              class="pixel-link-btn project-card__link"
-            >
-              View on GitHub
-            </a>
-          </div>
-          <div class="project-grid__side">
-            <p class="tech-stack__label">Technology Stack:</p>
-            <div class="tech-grid">
-              <div
-                v-for="(group, index) in project.techStack"
-                :key="group.label"
-                class="tech-card"
-                :class="`tech-card--${index === 1 ? 'backend' : index === 2 ? 'deploy' : ''}`"
-              >
-                <p class="tech-card__title">{{ group.label }}</p>
-                <ul>
-                  <li v-for="item in group.items" :key="item">{{ item }}</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+        <div class="project-teaser" aria-label="Latest projects and link to all projects">
+          <h3 class="project-card__title project-teaser__title">{{ featured.name }}</h3>
+          <p class="project-teaser__desc">{{ teaserText }}</p>
+          <a :href="projectsHref()" class="pixel-link-btn project-teaser__link"> All projects → </a>
         </div>
       </div>
     </transition>
