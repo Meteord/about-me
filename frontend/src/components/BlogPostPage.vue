@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { blogHref } from '../composables/useHashRoute'
 import { siteData } from '../data/siteData'
 import { useBlogAnimation } from '../composables/useBlogAnimation'
@@ -12,49 +12,45 @@ const stepVariants = [
   'model-card__step--orange',
   'model-card__step--red',
 ]
-const nodeVariants = [
-  'tech-diagram__node--amber',
-  'tech-diagram__node--orange',
-  'tech-diagram__node--red',
-]
 
 const steps = ['01', '02'] as const
-
-const flowNodes = [
-  {
-    id: 'you',
-    title: 'You',
-    sub: 'ask a question',
-    icon: 'chat',
-  },
-  {
-    id: 'retriever',
-    title: 'Tool retriever',
-    sub: 'BM25 / vector search · top-k schemas',
-    icon: 'funnel',
-  },
-  {
-    id: 'model',
-    title: 'Mini-Michi',
-    sub: 'LFM2.5-350M · WebGPU / WASM',
-    icon: 'chip',
-  },
-  {
-    id: 'reply',
-    title: 'Reply',
-    sub: 'streamed token-by-token',
-    icon: 'wave',
-  },
-]
-
-const rankRows = [
-  { name: 'retrieve', score: 96, hit: true },
-  { name: 'set_theme', score: 12, hit: false },
-]
 
 const props = defineProps<{ slug: string }>()
 
 const post = computed(() => siteData.blog.find((entry) => entry.slug === props.slug))
+
+const diagramSvg = ref('')
+
+onMounted(async () => {
+  const { default: mermaid } = await import('mermaid')
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: 'base',
+    themeVariables: {
+      background: 'transparent',
+      primaryColor: '#2a2118',
+      primaryTextColor: '#f6efe4',
+      primaryBorderColor: '#4a3f32',
+      lineColor: '#fbbf24',
+      secondaryColor: '#201a13',
+      tertiaryColor: '#171310',
+      edgeLabelBackground: '#201a13',
+      edgeLabelColor: '#f6efe4',
+      fontFamily: 'var(--font-body)',
+    },
+    flowchart: { curve: 'step' },
+  })
+  const { svg } = await mermaid.render(
+    'mm-request-flow',
+    `flowchart LR
+      A["You<br/>ask a question"] --> B["Tool retriever<br/>BM25 + vector · top-k"]
+      B --> C["Mini-Michi<br/>LFM2.5-350M"]
+      C -- "tool call" --> B
+      C --> D["Reply<br/>streamed tokens"]`,
+  )
+  diagramSvg.value = svg
+})
 </script>
 
 <template>
@@ -96,93 +92,8 @@ const post = computed(() => siteData.blog.find((entry) => entry.slug === props.s
         <span class="pixel-chip pixel-chip--amber">The flow</span>
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
-      <div class="tech-diagram" aria-hidden="true">
-        <div class="tech-diagram__flow">
-          <template v-for="(node, index) in flowNodes" :key="node.title">
-            <div
-              class="tech-diagram__node"
-              :class="nodeVariants[index % nodeVariants.length]"
-              data-anim="node"
-            >
-              <div class="tech-diagram__socket">
-                <svg
-                  class="tech-diagram__icon"
-                  viewBox="0 0 16 16"
-                  width="24"
-                  height="24"
-                  shape-rendering="crispEdges"
-                  aria-hidden="true"
-                >
-                  <path
-                    v-if="node.icon === 'chat'"
-                    d="M1 1h14v9H8l-3 4V10H1z"
-                    fill="currentColor"
-                  />
-                  <template v-else-if="node.icon === 'funnel'">
-                    <path d="M1 1h14v3l-5 4v7H6V8L1 4z" fill="currentColor" />
-                  </template>
-                  <template v-else-if="node.icon === 'chip'">
-                    <path
-                      d="M5 5h6v6H5zM6 2h1v2H6zM9 2h1v2H9zM6 12h1v2H6zM9 12h1v2H9zM2 6h2v1H2zM2 9h2v1H2zM12 6h2v1h-2zM12 9h2v1h-2z"
-                      fill="currentColor"
-                    />
-                  </template>
-                  <template v-else>
-                    <path d="M11 3h2v10h-2zM7 6h2v7H7zM3 9h2v4H3z" fill="currentColor" />
-                  </template>
-                </svg>
-                <span class="tech-diagram__glow" aria-hidden="true"></span>
-              </div>
-              <div class="tech-diagram__body">
-                <div class="tech-diagram__node-meta">
-                  <span class="tech-diagram__leds" aria-hidden="true"
-                    ><i></i><i></i><i class="tech-diagram__led--on"></i
-                  ></span>
-                </div>
-                <span class="tech-diagram__node-title">{{ node.title }}</span>
-                <span class="tech-diagram__node-sub">{{ node.sub }}</span>
-              </div>
-              <div v-if="node.id === 'you'" class="blog-term" aria-hidden="true">
-                <span class="blog-term__prompt">&gt;</span>
-                <span class="blog-term__text">"how does this site work?"</span>
-                <span class="blog-term__cursor"></span>
-              </div>
-              <div v-if="node.id === 'retriever'" class="tech-diagram__pool">
-                <div class="blog-ranks">
-                  <div
-                    v-for="row in rankRows"
-                    :key="row.name"
-                    class="blog-rank"
-                    :class="{ 'blog-rank--hit': row.hit }"
-                    :style="{ '--bar-w': row.score + '%' }"
-                  >
-                    <span class="blog-rank__name">{{ row.name }}</span>
-                    <span class="blog-rank__bar"></span>
-                    <span class="blog-rank__pct">{{ row.score }}%</span>
-                  </div>
-                </div>
-                <div class="blog-ranks__foot">
-                  <span class="blog-modes">hybrid</span>
-                  <span class="blog-modes__sub">lex + vec · RRF fused</span>
-                </div>
-              </div>
-              <div v-if="node.id === 'reply'" class="blog-tokens" aria-hidden="true">
-                <i></i><i></i><i></i><i></i><i></i>
-              </div>
-              <div v-if="node.id === 'reply'" class="blog-term blog-reply" aria-hidden="true">
-                <span class="blog-term__prompt">&gt;</span>
-                <span class="blog-term__text">"it runs the ai fully on-device"</span>
-                <span class="blog-term__cursor"></span>
-              </div>
-            </div>
-            <span
-              v-if="index < flowNodes.length - 1"
-              class="tech-diagram__connector"
-              aria-hidden="true"
-            ></span>
-          </template>
-          <span class="blog-packet" aria-hidden="true"></span>
-        </div>
+      <div class="blog-flow" data-anim="card">
+        <div class="blog-flow__diagram" v-html="diagramSvg"></div>
         <span class="tech-diagram__note" data-anim="note"
           >no data leaves your browser · 100% on-device</span
         >
