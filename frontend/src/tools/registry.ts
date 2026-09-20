@@ -24,7 +24,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     function: {
       name: 'retrieve',
       description:
-        'Retrieve information about Michael Jaumann and bring the matching section into view: expands the right section, spotlights the relevant content card and collapses all other sections so the answer is the only thing on screen. Use this for ANY question about Michael (bio, education, skills, hobbies, projects like MUCGPT, contact links, the blog / how this site works). Example: retrieve(topic="skills")',
+        'Retrieve information about Michael Jaumann and bring the matching section into view: expands the right section, spotlights the relevant content card and collapses all other sections so the answer is the only thing on screen. Use this for ANY question about Michael (bio, education, skills, hobbies, projects like MUCGPT — its own page reachable from the Projects section, contact links, the blog / how this site works). Example: retrieve(topic="skills")',
       parameters: {
         type: 'object',
         properties: {
