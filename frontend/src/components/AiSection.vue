@@ -429,21 +429,18 @@ async function retryModel(): Promise<void> {
       <span class="ai-panel__title">Mini-Michi</span>
       <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
-    <div class="ai-panel__body">
-      <ToolSelectorPanel :on-clear="clearChat" />
-
-      <div class="pixel-chat__hero">
-        <img
-          src="/mm.webp"
-          alt="Mini-Michi"
-          width="44"
-          height="44"
-          class="pixel-avatar pixel-chat__hero-avatar"
-        />
-        <div class="pixel-chat__hero-copy">
-          <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
-          <p class="pixel-chat__hero-sub">…about Michael</p>
+    <div class="lv3-chat">
+      <div class="lv3-chat__banner">
+        <span
+          class="lv3-chat__banner-dot"
+          :class="{ 'lv3-chat__banner-dot--err': state.status === 'error' }"
+          aria-hidden="true"
+        ></span>
+        <div class="lv3-chat__banner-copy">
+          <h2 class="lv3-chat__banner-title">Mini-Michi</h2>
+          <p class="lv3-chat__banner-status">chat model · {{ state.status }}</p>
         </div>
+        <span class="lv3-chat__banner-mode">{{ retrievalMode }}</span>
         <button
           class="pixel-link-btn pixel-chat__new"
           type="button"
@@ -453,8 +450,8 @@ async function retryModel(): Promise<void> {
           New chat
         </button>
       </div>
-
-      <div ref="chatEl" class="pixel-chat">
+      <ToolSelectorPanel :on-clear="clearChat" />
+      <div ref="chatEl" class="pixel-chat lv3-chat__log">
         <template v-for="message in messages" :key="message.id">
           <div v-if="message.role === 'user'" class="pixel-msg pixel-msg--user">
             <p>{{ message.content }}</p>
@@ -585,7 +582,6 @@ async function retryModel(): Promise<void> {
                 {{ message.detailsOpen ? '−' : '+' }}
               </span>
             </button>
-
             <transition name="fade">
               <div
                 v-if="message.detailsOpen"
@@ -659,45 +655,51 @@ async function retryModel(): Promise<void> {
           </button>
         </div>
 
-        <div v-if="messages.length === 0" class="pixel-chat__empty">
-          <p class="pixel-chat__hint">
-            Hi! I'm Mini-Michi, an on-device SLM running here in your browser over
-            {{
-              state.device === 'webgpu'
-                ? 'WebGPU'
-                : state.device === 'wasm'
-                  ? 'WebAssembly'
-                  : 'WebGPU or WebAssembly'
-            }}. Ask me anything about Michael — I'll look it up and bring the right section into
-            view. I can also recolor the page or list everything on the site.
-          </p>
-          <button
-            v-if="state.status === 'idle'"
-            class="pixel-link-btn pixel-chat__load"
-            type="button"
-            @click="loadModel"
-          >
-            Load Mini-Michi
-          </button>
-          <div class="pixel-tags pixel-chat__examples">
+        <div v-if="messages.length === 0" class="lv3-chat__start">
+          <div class="lv3-chat__start-card">
+            <p class="lv3-chat__start-kicker">boot</p>
+            <p class="pixel-chat__hint">
+              Hi! I'm Mini-Michi, an on-device SLM running here in your browser over
+              {{
+                state.device === 'webgpu'
+                  ? 'WebGPU'
+                  : state.device === 'wasm'
+                    ? 'WebAssembly'
+                    : 'WebGPU or WebAssembly'
+              }}. Ask me anything about Michael — I'll look it up and bring the right section into
+              view.
+            </p>
             <button
-              v-for="example in suggestions"
-              :key="example"
-              class="pixel-chip pixel-chat__example"
+              v-if="state.status === 'idle'"
+              class="pixel-link-btn pixel-chat__load"
               type="button"
-              :disabled="isGenerating || state.status !== 'ready'"
-              @click="handleSend(example)"
+              @click="loadModel"
             >
-              {{ example }}
+              Load Mini-Michi
             </button>
-            <button
-              class="pixel-link-btn pixel-chat__shuffle"
-              type="button"
-              :disabled="isGenerating || state.status !== 'ready'"
-              @click="pickSuggestions()"
-            >
-              Shuffle
-            </button>
+          </div>
+          <div class="lv3-chat__start-card">
+            <p class="lv3-chat__start-kicker">try these</p>
+            <div class="pixel-tags pixel-chat__examples lv3-chat__start-examples">
+              <button
+                v-for="example in suggestions"
+                :key="example"
+                class="pixel-chip pixel-chat__example"
+                type="button"
+                :disabled="isGenerating || state.status !== 'ready'"
+                @click="handleSend(example)"
+              >
+                {{ example }}
+              </button>
+              <button
+                class="pixel-link-btn pixel-chat__shuffle"
+                type="button"
+                :disabled="isGenerating || state.status !== 'ready'"
+                @click="pickSuggestions()"
+              >
+                Shuffle
+              </button>
+            </div>
           </div>
         </div>
 
@@ -714,8 +716,7 @@ async function retryModel(): Promise<void> {
           </button>
         </div>
       </div>
-
-      <form class="pixel-chat__input" @submit.prevent="handleSend()">
+      <form class="pixel-chat__input lv3-chat__input" @submit.prevent="handleSend()">
         <input
           ref="inputEl"
           v-model="input"

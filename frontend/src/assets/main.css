@@ -2026,6 +2026,139 @@ html[data-zoom='comfortable'] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mini-Michi chat (status-led panel)                                  */
+/* ------------------------------------------------------------------ */
+
+.lv3-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.lv3-chat__banner {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.875rem;
+  background: linear-gradient(180deg, #241c12 0%, #1a140c 100%);
+  border: 1px solid var(--pixel-border);
+  box-shadow: var(--shadow-soft);
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 4px
+  );
+}
+
+.lv3-chat__banner-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  flex-shrink: 0;
+  background: var(--pixel-accent);
+  box-shadow: 2px 2px 0 0 rgba(16, 12, 7, 0.55);
+}
+
+.lv3-chat__banner-dot--err {
+  background: var(--pixel-red);
+}
+
+.lv3-chat__banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.lv3-chat__banner-copy > * {
+  margin: 0;
+}
+
+.lv3-chat__banner-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--pixel-title);
+}
+
+.lv3-chat__banner-status {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pixel-ink-dim);
+}
+
+.lv3-chat__banner-mode {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pixel-accent);
+}
+
+.lv3-chat__banner .pixel-chat__new {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+}
+
+.lv3-chat__log {
+  border-width: 1px;
+}
+
+.lv3-chat__start {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+  width: 100%;
+  max-width: 40ch;
+  margin: auto;
+  padding: 0.25rem 0;
+}
+
+.lv3-chat__start-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(16, 12, 7, 0.35);
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+  box-shadow: var(--shadow-soft);
+}
+
+.lv3-chat__start-kicker {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pixel-accent);
+}
+
+.lv3-chat__start-card .pixel-chat__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  text-align: left;
+  max-width: none;
+}
+
+.lv3-chat__start-examples {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Chat tool-result widgets                                            */
 /* ------------------------------------------------------------------ */
 
