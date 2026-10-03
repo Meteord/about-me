@@ -150,7 +150,7 @@ export function loadUseToolRetrieval() {
     return requireFn(request)
   }
   const code = transpile(useToolRetrievalPath)
-    .replace('mod.env.useBrowserCache = true', 'mod.env.useBrowserCache = false')
+    .replace(/mod\.env\.useBrowserCache = true/g, 'mod.env.useBrowserCache = false')
     .replace(/device: 'wasm'/g, "device: 'cpu'")
   return module(retrieverRequire, code).useToolRetrieval()
 }
@@ -175,7 +175,7 @@ export function loadUseChatModel(dtype = 'q8', opts = {}) {
     return requireFn(request)
   }
   let code = transpile(useChatModelPath)
-  code = code.replace('mod.env.useBrowserCache = true', 'mod.env.useBrowserCache = false')
+  code = code.replace(/mod\.env\.useBrowserCache = true/g, 'mod.env.useBrowserCache = false')
   code = code.replace(
     "device: 'wasm', dtype: 'q8'",
     `device: 'cpu', dtype: '${dtype}'`,

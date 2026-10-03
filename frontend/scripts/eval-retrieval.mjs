@@ -7,9 +7,10 @@
  * - lexical runs without any model download.
  * - vector/hybrid lazily download the prompt-router checkpoint (~357 MB, q8)
  *   and cache it in the default transformers.js cache (~/.cache/huggingface).
+ * - decide lazily downloads the GLiNER2.5-Decide checkpoint (~345 MB, q4f16).
  *   Use --modes=lexical for the offline-only pass.
  *
- * Usage: npm run eval:retrieval [-- --modes=lexical|vector|hybrid,... --topk=5]
+ * Usage: npm run eval:retrieval [-- --modes=lexical|vector|hybrid|decide,... --topk=5]
  * Exits non-zero when any fixture has no expected tool inside the top-K.
  */
 
@@ -109,7 +110,7 @@ function loadUseToolRetrieval() {
     return requireFn(request)
   }
   const code = transpile(useToolRetrievalPath)
-    .replace('mod.env.useBrowserCache = true', 'mod.env.useBrowserCache = false')
+    .replace(/mod\.env\.useBrowserCache = true/g, 'mod.env.useBrowserCache = false')
     .replace(/device: 'wasm'/g, "device: 'cpu'")
   return module(retrieverRequire, code).useToolRetrieval()
 }
@@ -140,7 +141,7 @@ const arg = (name, fallback) => {
   return hit ? hit.split('=').slice(1).join('=').split(',') : fallback
 }
 
-const modesArg = arg('modes', ['lexical', 'vector', 'hybrid'])
+const modesArg = arg('modes', ['lexical', 'vector', 'hybrid', 'decide'])
 const topK = Number(arg('topk', ['5'])[0]) || 5
 
 const retriever = loadUseToolRetrieval()
@@ -155,8 +156,16 @@ if (modesArg.includes('vector') || modesArg.includes('hybrid')) {
   )
 }
 
+if (modesArg.includes('decide')) {
+  process.stderr.write('initializing GLiNER2.5-Decide (downloads on first run)…\n')
+  await retriever.loadDecide()
+  console.log(
+    `decide: ${retriever.decide.value.status} · ${retriever.decide.value.device} · ${retriever.decide.value.dtype}`,
+  )
+}
+
 for (const mode of modesArg) {
-  if (mode === 'lexical' || mode === 'vector' || mode === 'hybrid') {
+  if (mode === 'lexical' || mode === 'vector' || mode === 'hybrid' || mode === 'decide') {
     console.log(`\n=== mode: ${mode} (top ${topK}) ===`)
     const headerHit = []
     const headerMrr = []

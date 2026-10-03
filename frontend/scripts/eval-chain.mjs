@@ -10,7 +10,7 @@
  * frontend/src/data/evalResults.ts, and exits non-zero on failures. Optionally
  * scores STS-format runtime traces via --traces=.
  *
- * Usage: npm run eval:chain [-- --modes=lexical,vector,hybrid --topk=5
+ * Usage: npm run eval:chain [-- --modes=lexical,vector,hybrid,decide --topk=5
  *          --dtype=q8|q4 --sampling --judge=deterministic|stub
  *          --traces=<file|dir|url>]
  */
@@ -32,7 +32,7 @@ import { loadTraceSource, scoreTrace } from './trace-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CHAT_MODEL = 'LiquidAI/LFM2.5-350M-ONNX'
-const VALID_MODES = ['lexical', 'vector', 'hybrid']
+const VALID_MODES = ['lexical', 'vector', 'hybrid', 'decide']
 
 const noop = () => {}
 
@@ -133,6 +133,18 @@ if (modes.some((mode) => mode === 'vector' || mode === 'hybrid')) {
     )
   }
   console.log(`router: ${retriever.vector.value.status} · ${retriever.vector.value.device} · ${retriever.vector.value.dtype}`)
+}
+
+if (modes.some((mode) => mode === 'decide')) {
+  process.stderr.write('initializing GLiNER2.5-Decide (downloads on first run)…\n')
+  try {
+    await retriever.loadDecide()
+  } catch (error) {
+    process.stderr.write(
+      `decide unavailable (${error instanceof Error ? error.message : error}) — decide falls back to lexical\n`,
+    )
+  }
+  console.log(`decide: ${retriever.decide.value.status} · ${retriever.decide.value.device} · ${retriever.decide.value.dtype}`)
 }
 
 let chatOk = false

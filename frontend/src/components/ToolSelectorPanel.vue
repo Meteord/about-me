@@ -9,14 +9,33 @@ import { SOURCE_DEFS, buildContextText, decideAction } from '../tools/registry'
 defineProps<{ onClear?: () => void }>()
 
 const { state: chatState, loadModel } = useChatModel()
-const { mode, topK, lastQuery, lastResult, vector, retrieve, loadVector } = useToolRetrieval()
+const {
+  mode,
+  topK,
+  lastQuery,
+  lastResult,
+  vector,
+  decide,
+  retrieve,
+  loadVector,
+  disposeVector,
+  loadDecide,
+  disposeDecide,
+} = useToolRetrieval()
 const { state: layout } = useSiteLayout()
 
-const MODES: RetrievalMode[] = ['lexical', 'vector', 'hybrid']
+const MODES: RetrievalMode[] = ['lexical', 'vector', 'hybrid', 'decide']
 const MODE_LABEL: Record<RetrievalMode, string> = {
   lexical: 'LEX',
   vector: 'VECTOR',
   hybrid: 'HYBRID',
+  decide: 'DECIDE',
+}
+const MODE_MEANING: Record<RetrievalMode, string> = {
+  lexical: 'keyword match',
+  vector: 'meaning match',
+  hybrid: 'keyword + meaning',
+  decide: 'classifies which source your question is about',
 }
 
 const SAMPLES = [
@@ -64,9 +83,17 @@ function setMode(next: RetrievalMode): void {
   mode.value = next
   if (next === 'vector' || next === 'hybrid') {
     if (vector.value.status !== 'ready' && vector.value.status !== 'loading') {
-      void loadVector()
+      void loadVectorSafe()
     }
   }
+}
+
+function loadVectorSafe(): void {
+  void loadVector().catch(() => {})
+}
+
+function loadDecideSafe(): void {
+  void loadDecide().catch(() => {})
 }
 
 function bumpTopK(delta: number): void {
@@ -89,6 +116,15 @@ watch(
       lastQuery.value &&
       (mode.value === 'vector' || mode.value === 'hybrid')
     ) {
+      void runRetrieve(lastQuery.value)
+    }
+  },
+)
+
+watch(
+  () => decide.value.status,
+  (status) => {
+    if (status === 'ready' && lastQuery.value && mode.value === 'decide') {
       void runRetrieve(lastQuery.value)
     }
   },
@@ -201,10 +237,15 @@ const themeActed = computed(() => {
             action and injects only the few most relevant sources into the chat context — the model
             never sees all {{ TOTAL }} at once, and actions are applied directly by the retriever.
           </p>
-          <p class="tool-selector__intro tool-selector__intro--tech">
-            Under the hood: an on-device zero-shot prompt-router checkpoint (LFM2.5-Encoder-350M)
-            fused with BM25 over the enriched source index via reciprocal rank fusion.
-          </p>
+          <details class="tool-selector__details">
+            <summary>Under the hood — four retrieval strategies</summary>
+            <p class="tool-selector__intro">
+              Keyword match (BM25 over the enriched source index), meaning match (an on-device
+              zero-shot prompt-router, LFM2.5-Encoder-350M), both fused via reciprocal rank fusion,
+              or DECIDE — a GLiNER2.5-Decide classifier that picks which content source a query is
+              about.
+            </p>
+          </details>
 
           <div class="tool-selector__controls">
             <form class="tool-selector__form" @submit.prevent="runRetrieve()">
@@ -234,14 +275,14 @@ const themeActed = computed(() => {
                   type="button"
                   class="pixel-chip tool-selector__chip"
                   :class="{ 'tool-selector__chip--active': mode === m }"
+                  :aria-pressed="mode === m"
+                  :aria-label="MODE_LABEL[m] + ' — ' + MODE_MEANING[m]"
+                  :title="MODE_MEANING[m]"
                   @click="setMode(m)"
                 >
                   {{ MODE_LABEL[m] }}
                 </button>
               </div>
-              <span class="tool-selector__mode-gloss" aria-hidden="true">
-                keyword · meaning · both
-              </span>
 
               <div class="tool-selector__topk">
                 <button
@@ -267,7 +308,11 @@ const themeActed = computed(() => {
             </div>
           </div>
 
-          <div v-if="vector.status === 'loading'" class="tool-selector__load">
+          <div
+            v-if="(mode === 'vector' || mode === 'hybrid') && vector.status === 'loading'"
+            class="tool-selector__load"
+          >
+            <span class="tool-selector__load-label">Vector retriever</span>
             <div
               class="ai-progress tool-selector__progress"
               role="progressbar"
@@ -280,12 +325,64 @@ const themeActed = computed(() => {
                 :style="{ clipPath: 'inset(0 ' + (100 - vector.progress) + '% 0 0)' }"
               ></span>
             </div>
-            <span v-if="vector.file" class="ai-status__file">{{ vector.file }}</span>
+            <span class="tool-selector__load-meta">
+              <span v-if="vector.file" class="ai-status__file">{{ vector.file }}</span>
+              <button type="button" class="tool-selector__cancel" @click="disposeVector">
+                Cancel
+              </button>
+            </span>
           </div>
 
           <p v-if="vector.status === 'error'" class="tool-selector__error">
             Vector retriever failed to load — falling back to lexical scores.
-            <button type="button" class="tool-selector__retry" @click="loadVector">Retry</button>
+            <span v-if="vector.error" class="tool-selector__error-msg">{{ vector.error }}</span>
+            <button type="button" class="tool-selector__retry" @click="loadVectorSafe">
+              Retry
+            </button>
+          </p>
+
+          <div v-if="mode === 'decide' && decide.status === 'idle'" class="tool-selector__gate">
+            <p class="tool-selector__gate-text">
+              DECIDE needs an extra on-device classifier — about 345&nbsp;MB, downloaded once and
+              cached.
+            </p>
+            <button
+              type="button"
+              class="pixel-link-btn tool-selector__gate-btn"
+              @click="loadDecideSafe"
+            >
+              Load DECIDE
+            </button>
+          </div>
+
+          <div v-if="mode === 'decide' && decide.status === 'loading'" class="tool-selector__load">
+            <span class="tool-selector__load-label">Decide retriever</span>
+            <div
+              class="ai-progress tool-selector__progress"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-valuenow="decide.progress"
+            >
+              <span
+                class="ai-progress__bar"
+                :style="{ clipPath: 'inset(0 ' + (100 - decide.progress) + '% 0 0)' }"
+              ></span>
+            </div>
+            <span class="tool-selector__load-meta">
+              <span v-if="decide.file" class="ai-status__file">{{ decide.file }}</span>
+              <button type="button" class="tool-selector__cancel" @click="disposeDecide">
+                Cancel
+              </button>
+            </span>
+          </div>
+
+          <p v-if="mode === 'decide' && decide.status === 'error'" class="tool-selector__error">
+            Decide retriever failed to load — falling back to lexical scores.
+            <span v-if="decide.error" class="tool-selector__error-msg">{{ decide.error }}</span>
+            <button type="button" class="tool-selector__retry" @click="loadDecideSafe">
+              Retry
+            </button>
           </p>
 
           <div v-if="lastResult" class="tool-selector__results" aria-live="polite">

@@ -118,11 +118,11 @@ export const siteData = {
       icon: 'chip',
     },
     {
-      name: 'Content retriever — LFM2.5 prompt router',
+      name: 'Content retriever — LFM2.5 prompt router + GLiNER2.5-Decide',
       description:
-        'Before every reply, a retrieval step ranks the site\u2019s content sources and injects only the most relevant ones into the chat context. In vector mode, a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8) scores the request against all source names. BM25 over an alias-enriched index is the instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion. Theme changes are applied directly by the retriever \u2014 the model never calls a tool.',
+        'Before every reply, a retrieval step ranks the site\u2019s content sources and injects only the most relevant ones into the chat context. In vector mode, a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8) scores the request against all source names. BM25 over an alias-enriched index is the instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion. Decide mode runs an on-device GLiNER2.5-Decide classifier (onnx-community mobile export, q4f16 on WebAssembly) whose GLiNER2 processor is ported in this repo \u2014 the query is the state, the source names are the labels, and the top-ranked sources are injected like any other mode. Theme changes are applied directly by the retriever \u2014 the model never calls a tool.',
       link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX',
-      tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'q8', 'BM25', 'RRF'],
+      tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'GLiNER2.5-Decide', 'q8', 'q4f16', 'BM25', 'RRF'],
       icon: 'funnel',
     },
   ] as TechModel[],
@@ -138,6 +138,18 @@ export const siteData = {
       url: 'https://www.liquid.ai/blog/lfm2-5-retrievers',
       description:
         'LiquidAI\u2019s blog post on prompt-routing and retrieval, the idea behind scoring a request against all source names in a single pass.',
+    },
+    {
+      label: 'GLiNER2.5-Decide model',
+      url: 'https://huggingface.co/fastino/GLiNER2.5-Decide',
+      description:
+        'The classification model behind DECIDE mode: GLiNER2.5-Decide, a schema-conditioned DeBERTa-v3-large with one logit per label marker.',
+    },
+    {
+      label: 'Jevosaurus — a GLiNER2.5-Decide app',
+      url: 'https://huggingface.co/spaces/shreyask/jevosaurus',
+      description:
+        'An on-device example built on GLiNER2.5-Decide and open-jev that runs entirely in the browser \u2014 the same model family DECIDE mode uses.',
     },
   ] as ArticleLink[],
   blog: [

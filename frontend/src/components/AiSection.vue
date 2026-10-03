@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   useChatModel,
   MODEL_STATUS_LABEL,
@@ -65,6 +65,7 @@ const {
   disposeVector,
   vector,
   loadVector,
+  disposeDecide,
 } = useToolRetrieval()
 
 const input = ref('')
@@ -81,6 +82,7 @@ const MODE_GLOSS: Record<RetrievalMode, string> = {
   lexical: 'keyword match',
   vector: 'meaning match',
   hybrid: 'keyword + meaning',
+  decide: 'classifies the source',
 }
 
 const EXAMPLES = [
@@ -360,8 +362,14 @@ function clearChat(): void {
   modelMessages.value = []
   dispose()
   disposeVector()
+  disposeDecide()
   pickSuggestions()
 }
+
+onBeforeUnmount(() => {
+  disposeDecide()
+  disposeVector()
+})
 
 function startNewChat(): void {
   messages.value = []

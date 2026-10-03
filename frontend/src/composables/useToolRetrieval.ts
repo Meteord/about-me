@@ -23,7 +23,32 @@ const HEAD = {
   heading: 'Categories',
 }
 
-export type RetrievalMode = 'lexical' | 'vector' | 'hybrid'
+/**
+ * Decision classifier (GLiNER2.5-Decide, DeBERTa-v3-large): decides which
+ * content source a query is about. Port of the GLiNER2 classification
+ * processor (contract specs/003-gliner-decide-retrieval/contracts/decide-mode.md).
+ */
+const DECIDE_MODEL_ID = 'onnx-community/GLiNER2.5-Decide-mobile-ONNX'
+const DECIDE_PROMPT = 'Which content source answers this question?'
+/** GLiNER2 special-token ids, fixed in the export's vocab (contract table). */
+const DECIDE_TOKEN_IDS = {
+  SEP_STRUCT: 128001,
+  SEP_TEXT: 128002,
+  P: 128003,
+  C: 128004,
+  E: 128005,
+  R: 128006,
+  L: 128007,
+  EXAMPLE: 128008,
+  OUTPUT: 128009,
+  DESCRIPTION: 128010,
+} as const
+/** 1024-token context; DeBERTa-v3 uses relative positions only, so the
+    export's max_len: 512 is not a hard limit. The state is cut from the end. */
+const DECIDE_MAX_LENGTH = 1024
+const DECIDE_MAX_STATE_TOKENS = 896
+
+export type RetrievalMode = 'lexical' | 'vector' | 'hybrid' | 'decide'
 export type VectorStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface VectorState {
@@ -68,6 +93,14 @@ const vectorState = ref<VectorState>({
   file: '',
   error: null,
 })
+const decideState = ref<VectorState>({
+  status: 'idle',
+  device: 'wasm',
+  dtype: 'q4f16',
+  progress: 0,
+  file: '',
+  error: null,
+})
 
 /* ------------------------------------------------------------------ */
 /* On-device prompt router (lazy singleton)                            */
@@ -87,6 +120,31 @@ interface ModelLike {
   dispose?(): Promise<unknown[]>
 }
 
+interface TransformersEnv {
+  allowLocalModels: boolean
+  useBrowserCache: boolean
+  backends?: {
+    onnx?: {
+      wasm?: { wasmPaths?: { mjs: string; wasm: string } }
+      versions?: { web?: string }
+    }
+  }
+}
+
+/** transformers.js points its WASM binary at the non-JSEP factory on jsdelivr,
+    which the full onnxruntime bundle (vite alias) cannot dispatch int4 kernels
+    against. Route it to the JSEP factory on the same CDN, before any wasm session. */
+function useJsepWasm(env: TransformersEnv): void {
+  const onnx = env.backends?.onnx
+  const version = onnx?.versions?.web
+  if (!version || !onnx?.wasm) return
+  const prefix = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${version}/dist/`
+  onnx.wasm.wasmPaths = {
+    mjs: `${prefix}ort-wasm-simd-threaded.jsep.mjs`,
+    wasm: `${prefix}ort-wasm-simd-threaded.jsep.wasm`,
+  }
+}
+
 interface RouterModule {
   AutoTokenizer: {
     from_pretrained(modelId: string, options: Record<string, unknown>): Promise<TokenizerLike>
@@ -94,7 +152,7 @@ interface RouterModule {
   PreTrainedModel: {
     from_pretrained(modelId: string, options: Record<string, unknown>): Promise<ModelLike>
   }
-  env: { allowLocalModels: boolean; useBrowserCache: boolean }
+  env: TransformersEnv
 }
 
 interface RouterInstance {
@@ -289,6 +347,7 @@ async function loadRouterInner(): Promise<void> {
     const mod = (await import('@huggingface/transformers')) as unknown as RouterModule
     mod.env.allowLocalModels = false
     mod.env.useBrowserCache = true
+    useJsepWasm(mod.env)
 
     let tokenizer: TokenizerLike
     let model: ModelLike
@@ -355,6 +414,218 @@ export function disposeVector(): void {
   vectorState.value.progress = 0
   vectorState.value.file = ''
   vectorState.value.error = null
+}
+
+/* ------------------------------------------------------------------ */
+/* GLiNER2.5-Decide decision classifier (lazy singleton)               */
+/* ------------------------------------------------------------------ */
+
+interface DecideTokenizerLike {
+  (
+    text: string,
+    options?: { add_special_tokens?: boolean },
+  ): {
+    input_ids: Tensor
+    attention_mask: Tensor
+  }
+}
+
+interface DecideModelLike {
+  (inputs: {
+    input_ids: Tensor
+    attention_mask: Tensor
+    marker_positions: Tensor
+  }): Promise<{ logits: Tensor }>
+  dispose?(): Promise<unknown[]>
+}
+
+interface DecideModule {
+  AutoTokenizer: {
+    from_pretrained(modelId: string, options: Record<string, unknown>): Promise<DecideTokenizerLike>
+  }
+  PreTrainedModel: {
+    from_pretrained(modelId: string, options: Record<string, unknown>): Promise<DecideModelLike>
+  }
+  env: TransformersEnv
+  Tensor: new (type: string, data: unknown, dims: number[]) => Tensor
+}
+
+interface DecideInstance {
+  tokenizer: DecideTokenizerLike
+  model: DecideModelLike
+}
+
+type TensorCtor = DecideModule['Tensor']
+
+let decideInstance: DecideInstance | null = null
+let decideLoading: Promise<void> | null = null
+let decideTensor: TensorCtor | null = null
+
+function decideProgress(progress: { status?: string; file?: string; progress?: number }): void {
+  if (typeof progress.progress === 'number') {
+    decideState.value.progress = Math.round(progress.progress)
+  }
+  if (progress.file) {
+    decideState.value.file = progress.file
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* GLiNER2 processor port (contract decide-mode.md)                    */
+/* ------------------------------------------------------------------ */
+
+/** Word splitter of the GLiNER2 processor (`WhitespaceTokenSplitter`),
+    with `\w` widened to Unicode letters, marks and digits. */
+const GLINER2_WORD_PATTERN =
+  /(?:https?:\/\/[^\s]+|www\.[^\s]+)|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|@[a-z0-9_]+|[\p{L}\p{M}\p{N}_]+(?:[-_][\p{L}\p{M}\p{N}_]+)*|\S/giu
+
+function splitStateWords(state: string): string[] {
+  let text = state.trim()
+  text = text === '' ? '.' : /[.!?]$/.test(text) ? text : `${text}.`
+  return text.match(GLINER2_WORD_PATTERN) ?? []
+}
+
+/**
+ * Build the decide prompt tensors: `( [P] prompt ( [L] label_1 [L] label_2 … ) )
+ * [SEP_TEXT] state`. Prompt and labels keep their case and are tokenized as
+ * whole strings; the state is lowercased, word-split and tokenized one word at
+ * a time (no special tokens, no [CLS]/[SEP]); `(` / `)` are standalone words;
+ * marker_positions is the index of every [L] token. The state is truncated
+ * from the end to fit `maxLength − schema`.
+ */
+function buildDecidePrompt(
+  tokenizer: DecideTokenizerLike,
+  TensorCtor: TensorCtor,
+  query: string,
+  labels: readonly string[],
+): { input_ids: Tensor; attention_mask: Tensor; marker_positions: Tensor } {
+  const encodeText = (text: string): number[] => {
+    const encoded = tokenizer(text, { add_special_tokens: false })
+    return Array.from(encoded.input_ids.data as BigInt64Array | Int32Array, Number)
+  }
+
+  const inputIds: number[] = []
+  const markerPositions: number[] = []
+
+  inputIds.push(...encodeText('('), DECIDE_TOKEN_IDS.P)
+  inputIds.push(...encodeText(DECIDE_PROMPT))
+  inputIds.push(...encodeText('('))
+  for (const label of labels) {
+    markerPositions.push(inputIds.length)
+    inputIds.push(DECIDE_TOKEN_IDS.L, ...encodeText(label))
+  }
+  inputIds.push(...encodeText(')'), ...encodeText(')'))
+  inputIds.push(DECIDE_TOKEN_IDS.SEP_TEXT)
+
+  if (markerPositions.length !== labels.length) {
+    throw new Error('Decide prompt marker/label count mismatch.')
+  }
+
+  const stateBudget = Math.min(DECIDE_MAX_STATE_TOKENS, DECIDE_MAX_LENGTH - inputIds.length)
+  const stateIds: number[] = []
+  for (const word of splitStateWords(query)) {
+    stateIds.push(...encodeText(word.toLowerCase()))
+  }
+  inputIds.push(...stateIds.slice(0, Math.max(stateBudget, 0)))
+
+  const dims = [1, inputIds.length] as const
+  return {
+    input_ids: new TensorCtor('int64', inputIds, [...dims]),
+    attention_mask: new TensorCtor(
+      'int64',
+      Array.from({ length: inputIds.length }, () => 1),
+      [...dims],
+    ),
+    marker_positions: new TensorCtor('int64', markerPositions, [1, markerPositions.length]),
+  }
+}
+
+/** One forward pass; softmax over the per-marker logits, normalized to a top
+    score of 1.0 (matching the other modes' display contract). */
+async function decideScores(query: string, docs: SourceDoc[]): Promise<number[]> {
+  if (!decideInstance || !decideTensor) throw new Error('Decide model not loaded.')
+  const labels = docs.map((doc) => doc.name)
+  const prompt = buildDecidePrompt(decideInstance.tokenizer, decideTensor, query, labels)
+  const out = await decideInstance.model({
+    input_ids: prompt.input_ids,
+    attention_mask: prompt.attention_mask,
+    marker_positions: prompt.marker_positions,
+  })
+  const logits = Array.from(out.logits.data as Float32Array | BigInt64Array, Number)
+  const probabilities = softmax(logits)
+  const max = Math.max(...probabilities, 1e-9)
+  return probabilities.map((probability) => probability / max)
+}
+
+/* ------------------------------------------------------------------ */
+/* Decide lifecycle                                                    */
+/* ------------------------------------------------------------------ */
+
+async function loadDecideInner(): Promise<void> {
+  if (decideInstance) return
+
+  decideState.value.status = 'loading'
+  decideState.value.progress = 0
+  decideState.value.file = ''
+  decideState.value.error = null
+
+  try {
+    const mod = (await import('@huggingface/transformers')) as unknown as DecideModule
+    mod.env.allowLocalModels = false
+    mod.env.useBrowserCache = true
+    useJsepWasm(mod.env)
+
+    // This repo only ships `model_q4f16.onnx`, and ORT's WebGPU EP has no
+    // GatherBlockQuantized kernel, so a WebGPU attempt is guaranteed to fail.
+    // transformers.js chains every browser session creation through a module
+    // promise that is never reset after a rejection, so a failed WebGPU pass
+    // would also kill the WASM fallback (and poison later vector/chat loads).
+    const tokenizer = await mod.AutoTokenizer.from_pretrained(DECIDE_MODEL_ID, {
+      progress_callback: decideProgress,
+    })
+    const model = await mod.PreTrainedModel.from_pretrained(DECIDE_MODEL_ID, {
+      device: 'wasm',
+      dtype: 'q4f16',
+      progress_callback: decideProgress,
+    })
+    decideTensor = mod.Tensor
+    decideInstance = { tokenizer, model }
+    decideState.value.device = 'wasm'
+    decideState.value.dtype = 'q4f16'
+    decideState.value.status = 'ready'
+    decideState.value.progress = 100
+  } catch (error) {
+    decideState.value.status = 'error'
+    decideState.value.error = error instanceof Error ? error.message : String(error)
+    throw error
+  }
+}
+
+export function loadDecide(): Promise<void> {
+  if (!decideLoading) {
+    decideLoading = loadDecideInner().catch((error: unknown) => {
+      decideLoading = null
+      throw error
+    })
+  }
+  return decideLoading
+}
+
+export function disposeDecide(): void {
+  try {
+    void decideInstance?.model.dispose?.()
+  } catch {
+    // ignore dispose errors
+  }
+  decideInstance = null
+  decideTensor = null
+  decideLoading = null
+  decideState.value.status = 'idle'
+  decideState.value.device = 'wasm'
+  decideState.value.dtype = 'q4f16'
+  decideState.value.progress = 0
+  decideState.value.file = ''
+  decideState.value.error = null
 }
 
 /* ------------------------------------------------------------------ */
@@ -478,17 +749,26 @@ export async function retrieve(
   }
 
   const vectorReady = vectorState.value.status === 'ready'
+  const decideReady = decideState.value.status === 'ready'
   const needsVector = selectedMode === 'vector' || selectedMode === 'hybrid'
-  let effective = needsVector && !vectorReady ? 'lexical' : selectedMode
+  const needsDecide = selectedMode === 'decide'
+  let effective: RetrievalMode =
+    needsVector && !vectorReady ? 'lexical' : needsDecide && !decideReady ? 'lexical' : selectedMode
 
   let scores: number[]
   try {
-    if (selectedMode === 'lexical' || !vectorReady) {
+    if (
+      selectedMode === 'lexical' ||
+      (needsVector && !vectorReady) ||
+      (needsDecide && !decideReady)
+    ) {
       scores = lexicalScores(query, docs)
     } else if (selectedMode === 'vector') {
       scores = await vectorScores(query, docs)
-    } else {
+    } else if (selectedMode === 'hybrid') {
       scores = hybridScores(lexicalScores(query, docs), await vectorScores(query, docs))
+    } else {
+      scores = await decideScores(query, docs)
     }
   } catch {
     scores = lexicalScores(query, docs)
@@ -535,8 +815,11 @@ export function useToolRetrieval() {
     lastQuery,
     lastResult,
     vector: vectorState,
+    decide: decideState,
     retrieve,
     loadVector,
     disposeVector,
+    loadDecide,
+    disposeDecide,
   }
 }
