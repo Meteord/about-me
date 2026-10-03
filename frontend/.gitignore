@@ -32,6 +32,9 @@ coverage
 
 *.tsbuildinfo
 
+# Runtime chat traces (user-collected sessions — never committed)
+traces/*.jsonl
+
 # impeccable-live-ignore-start
 .impeccable/hook.cache.json
 .impeccable/hook.pending.json

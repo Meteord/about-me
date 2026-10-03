@@ -4,6 +4,20 @@ import { homeHref } from '../composables/useHashRoute'
 import { formatBlogDate } from '../composables/useBlogDate'
 import { siteData, type TechModel } from '../data/siteData'
 import { useBlogAnimation } from '../composables/useBlogAnimation'
+import { evalResults, type CaseResult, type ModeAggregate } from '../data/evalResults'
+
+const pct = (value: number): string => `${Math.round(value * 100)}%`
+const barClip = (value: number): string => `inset(0 ${100 - Math.round(value * 100)}% 0 0)`
+const formatGeneratedAt = (iso: string): string =>
+  new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+const formatLatency = (ms: number): string =>
+  ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
+const caseReason = (entry: CaseResult): string => {
+  if (!entry.retrievalPass) return 'retrieval missed'
+  if (!entry.toolsPass) return 'wrong tool call'
+  if (!entry.answerPass) return 'answer drifted'
+  return 'chain failed'
+}
 
 const articleRef = ref<HTMLElement | null>(null)
 useBlogAnimation(articleRef)
@@ -21,6 +35,24 @@ const techCards = computed<{ model: TechModel; index: number }[]>(() => {
   return [retriever, chat]
     .filter((m): m is TechModel => Boolean(m))
     .map((model, index) => ({ model, index }))
+})
+
+const CASES_PREVIEW = 3
+const casesExpanded = ref(false)
+const visibleCases = computed(() =>
+  casesExpanded.value ? evalResults.cases : evalResults.cases.slice(0, CASES_PREVIEW),
+)
+
+const evalAggregate = computed(() => {
+  const { modes } = evalResults
+  if (!modes.length) return null
+  const mean = (key: keyof ModeAggregate): number =>
+    modes.reduce((acc, mode) => acc + (mode[key] as number), 0) / modes.length
+  return {
+    factRecall: mean('factRecall'),
+    faithfulness: mean('faithfulness'),
+    chainPassRate: mean('chainPassRate'),
+  }
 })
 
 const diagramSvg = ref('')
@@ -218,6 +250,180 @@ onBeforeUnmount(() => {
           — {{ link.description }}
         </li>
       </ul>
+
+      <h2 class="blog-post__subhead" data-anim="card">
+        <span class="pixel-chip pixel-chip--amber">The eval</span>
+        <span class="blog-post__subhead-rule" aria-hidden="true"></span>
+      </h2>
+      <h3 class="blog-post__eval-question" data-anim="card">
+        How well does the whole chain actually work?
+      </h3>
+      <div class="eval-results" data-anim="card">
+        <template v-if="evalResults.fixtures > 0">
+          <p class="eval-results__meta">
+            The numbers below come from a real run of the whole on-device chain — retrieval → tool
+            selection → {{ evalResults.config.chatModel }} → tool calls → final answer — scored by a
+            deterministic judge.
+          </p>
+          <p class="eval-results__meta">
+            Generated
+            <time :datetime="evalResults.generatedAt">{{
+              formatGeneratedAt(evalResults.generatedAt)
+            }}</time>
+            · {{ evalResults.config.device }} · {{ evalResults.config.dtype }} ·
+            {{ evalResults.config.sampling ? 'sampling' : 'greedy' }} · top-{{
+              evalResults.config.topK
+            }}
+            · max {{ evalResults.config.maxRounds }} rounds.
+          </p>
+          <p class="eval-results__legend">
+            hit@5 — the right tool is in the top 5 · tool recall — the model calls it · fact recall
+            — the answer keeps the retrieved facts · faithfulness — every sentence stays grounded in
+            them · chain pass — retrieval, tools and answer together.
+          </p>
+
+          <div class="eval-modes">
+            <article v-for="mode in evalResults.modes" :key="mode.mode" class="eval-mode">
+              <h3 class="eval-mode__title">{{ mode.mode }}</h3>
+              <dl class="eval-mode__stats">
+                <div class="eval-mode__stat">
+                  <dt>hit@{{ evalResults.config.topK }}</dt>
+                  <dd>{{ pct(mode.retrievalHitRate) }}</dd>
+                </div>
+                <div class="eval-mode__stat">
+                  <dt>tool recall</dt>
+                  <dd>{{ pct(mode.toolRecall) }}</dd>
+                </div>
+                <div class="eval-mode__stat">
+                  <dt>fact recall</dt>
+                  <dd>{{ pct(mode.factRecall) }}</dd>
+                </div>
+                <div class="eval-mode__stat">
+                  <dt>faithfulness</dt>
+                  <dd>{{ pct(mode.faithfulness) }}</dd>
+                </div>
+                <div class="eval-mode__stat">
+                  <dt>latency</dt>
+                  <dd>{{ formatLatency(mode.meanTotalLatencyMs) }}</dd>
+                </div>
+                <div class="eval-mode__stat">
+                  <dt>rounds</dt>
+                  <dd>{{ mode.meanRounds.toFixed(2) }}</dd>
+                </div>
+                <div class="eval-mode__stat eval-mode__stat--pass">
+                  <dt>chain pass</dt>
+                  <dd>{{ pct(mode.chainPassRate) }}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+
+          <aside class="eval-takeaway">
+            <h4 class="eval-takeaway__title">What this tells us</h4>
+            <p class="eval-takeaway__text" v-if="evalAggregate">
+              Retrieval never misses — the right tools are always in context. The 350M model is the
+              bottleneck: it pulls the right facts ({{ pct(evalAggregate.factRecall) }}) but drifts
+              in the final answer ({{ pct(evalAggregate.faithfulness) }} faithful), so only
+              {{ pct(evalAggregate.chainPassRate) }} of runs pass end to end.
+            </p>
+          </aside>
+
+          <h4 class="eval-cases__title">Per fixture</h4>
+          <ol id="eval-cases-list" class="eval-cases">
+            <li
+              v-for="entry in visibleCases"
+              :key="`${entry.mode}-${entry.fixtureIndex}`"
+              class="eval-case"
+            >
+              <div class="eval-case__head">
+                <span class="eval-case__query">{{ entry.query }}</span>
+                <span
+                  class="eval-case__marker"
+                  :class="entry.chainPass ? 'eval-case__marker--pass' : 'eval-case__marker--fail'"
+                  >{{ entry.chainPass ? 'PASS' : 'FAIL' }}</span
+                >
+              </div>
+              <p class="eval-case__meta">
+                {{ entry.mode
+                }}<template v-if="entry.effectiveMode !== entry.mode">
+                  → {{ entry.effectiveMode }}</template
+                >
+                · tools:
+                {{
+                  entry.toolCalls.length ? entry.toolCalls.map((c) => c.name).join(', ') : 'none'
+                }}
+              </p>
+              <p v-if="!entry.chainPass" class="eval-case__reason">{{ caseReason(entry) }}</p>
+              <div class="eval-case__bars">
+                <div class="eval-bar">
+                  <span class="eval-bar__label">fact recall</span>
+                  <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+                    <i :style="{ clipPath: barClip(entry.score.factRecall) }"></i>
+                  </span>
+                  <span class="eval-bar__value">{{ pct(entry.score.factRecall) }}</span>
+                </div>
+                <div class="eval-bar">
+                  <span class="eval-bar__label">faithfulness</span>
+                  <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+                    <i :style="{ clipPath: barClip(entry.score.faithfulness) }"></i>
+                  </span>
+                  <span class="eval-bar__value">{{ pct(entry.score.faithfulness) }}</span>
+                </div>
+              </div>
+            </li>
+          </ol>
+          <button
+            v-if="evalResults.cases.length > CASES_PREVIEW"
+            type="button"
+            class="pixel-link-btn eval-cases__more"
+            :aria-expanded="casesExpanded"
+            aria-controls="eval-cases-list"
+            @click="casesExpanded = !casesExpanded"
+          >
+            {{ casesExpanded ? 'Show fewer' : `Show all ${evalResults.cases.length} cases` }}
+          </button>
+
+          <div v-if="evalResults.traces" class="eval-traces">
+            <h4 class="eval-traces__title">Runtime traces</h4>
+            <p class="eval-traces__meta">
+              {{ evalResults.traces.count }}
+              saved session{{ evalResults.traces.count === 1 ? '' : 's' }} scored historically ({{
+                evalResults.traces.mode
+              }}
+              · top-{{ evalResults.traces.topK }}).
+            </p>
+            <dl class="eval-traces__rates">
+              <div>
+                <dt>retrieval covered</dt>
+                <dd>{{ pct(evalResults.traces.retrievalCoverRate) }}</dd>
+              </div>
+              <div>
+                <dt>tool valid</dt>
+                <dd>{{ pct(evalResults.traces.toolValidRate) }}</dd>
+              </div>
+              <div>
+                <dt>grounded</dt>
+                <dd>{{ pct(evalResults.traces.groundedRate) }}</dd>
+              </div>
+              <div>
+                <dt>pass</dt>
+                <dd>{{ pct(evalResults.traces.passRate) }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <p class="eval-results__footnote">
+            Nothing here is simulated — every number comes from a real run of the on-device chain
+            (retrieval → {{ evalResults.config.chatModel }} → tools → answer). To refresh it, run
+            <code>npm run eval:chain</code> from <code>frontend/</code>.
+          </p>
+        </template>
+        <p v-else class="eval-results__empty">
+          No evaluation results committed yet. Run <code>npm run eval:chain</code> from
+          <code>frontend/</code> to measure the whole agent chain — retrieval → tool calls → final
+          answer — and this section will render the numbers.
+        </p>
+      </div>
 
       <div class="blog-post__closer" data-anim="card">
         <span class="blog-post__closer-tag">Try it yourself</span>

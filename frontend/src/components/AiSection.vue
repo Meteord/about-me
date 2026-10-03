@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from 'vue'
 import { useChatModel, CancelledError, humanizeModelError } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
+import { useTraceRecorder } from '../composables/useTraceRecorder'
 import { blogHref, projectsHref } from '../composables/useHashRoute'
 import {
   useToolRetrieval,
@@ -45,6 +46,7 @@ const {
   resetCancel,
 } = useChatModel()
 const { focusSection } = useSiteLayout()
+const { downloadTrace } = useTraceRecorder()
 const {
   mode: retrievalMode,
   topK: retrievalTopK,
@@ -414,6 +416,10 @@ function startNewChat(): void {
   nextTick(() => inputEl.value?.focus())
 }
 
+function saveTrace(): void {
+  downloadTrace(messages.value)
+}
+
 async function retryModel(): Promise<void> {
   try {
     await loadModel()
@@ -441,6 +447,14 @@ async function retryModel(): Promise<void> {
           <p class="lv3-chat__banner-status">chat model · {{ state.status }}</p>
         </div>
         <span class="lv3-chat__banner-mode">{{ retrievalMode }}</span>
+        <button
+          class="pixel-link-btn pixel-chat__save"
+          type="button"
+          :disabled="isGenerating || messages.length === 0"
+          @click="saveTrace"
+        >
+          Save trace
+        </button>
         <button
           class="pixel-link-btn pixel-chat__new"
           type="button"
