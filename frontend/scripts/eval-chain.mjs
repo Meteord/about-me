@@ -2,12 +2,13 @@
  * End-to-end agent chain evaluation (npm run eval:chain).
  *
  * Runs the ENTIRE chain exactly as AiSection.handleSend does in the browser —
- * retrieve() (real retriever) → pruneSchemas() → buildSystemPrompt() → real
- * LFM2.5-350M generation (CPU) → extractToolCalls() → executeToolCall() → tool
- * feedback → final answer — over every fixture × mode, scores it with the
- * selected Judge (deterministic by default), reports stage metrics, writes the
- * committed artifact frontend/src/data/evalResults.ts, and exits non-zero on
- * failures. Optionally scores STS-format runtime traces via --traces=.
+ * retrieve() (real retriever) → decideAction() (heuristic theme actions, no LLM
+ * call syntax) or buildContextText() (inject the retrieved content) →
+ * buildSystemPrompt() → real LFM2.5-350M generation (CPU) → final answer — over
+ * every fixture × mode, scores it with the selected Judge (deterministic by
+ * default), reports stage metrics, writes the committed artifact
+ * frontend/src/data/evalResults.ts, and exits non-zero on failures. Optionally
+ * scores STS-format runtime traces via --traces=.
  *
  * Usage: npm run eval:chain [-- --modes=lexical,vector,hybrid --topk=5
  *          --dtype=q8|q4 --sampling --judge=deterministic|stub
@@ -21,6 +22,7 @@ import { FIXTURES } from './eval-fixtures.mjs'
 import {
   createJudge,
   installWindowShim,
+  loadAllSourceTexts,
   loadRegistry,
   loadUseChatModel,
   loadUseToolRetrieval,
@@ -30,7 +32,6 @@ import { loadTraceSource, scoreTrace } from './trace-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CHAT_MODEL = 'LiquidAI/LFM2.5-350M-ONNX'
-const MAX_ROUNDS = 3
 const VALID_MODES = ['lexical', 'vector', 'hybrid']
 
 const noop = () => {}
@@ -106,15 +107,19 @@ function cleanAnswer(response) {
     .trim()
 }
 
+function themeConfirmation(theme) {
+  return `Done — I switched the accent color to ${theme}.`
+}
+
 /* ------------------------------------------------------------------ */
 /* Harness                                                             */
 /* ------------------------------------------------------------------ */
 
 installWindowShim()
 const registry = loadRegistry()
-const schemaNames = new Set(registry.TOOL_SCHEMAS.map((schema) => schema.function.name))
 const retriever = loadUseToolRetrieval()
 const chat = loadUseChatModel(dtype, { sampling: samplingEnabled })
+const sourceTexts = await loadAllSourceTexts(registry)
 
 console.log(`chat model: ${CHAT_MODEL} · cpu · ${dtype}${samplingEnabled ? ' · sampling' : ''}`)
 
@@ -145,6 +150,7 @@ try {
 /* ------------------------------------------------------------------ */
 
 function hitAtK(selectedNames, expected, k) {
+  if (expected.length === 0) return 1
   return selectedNames.slice(0, k).some((name) => expected.includes(name)) ? 1 : 0
 }
 
@@ -155,52 +161,8 @@ function mrr(rows, expected) {
   return ranks.length > 0 ? 1 / Math.min(...ranks) : 0
 }
 
-function computeToolMetrics(toolCalls, expected) {
-  const called = new Set(toolCalls.map((call) => call.name))
-  const recalled = expected.filter((name) => called.has(name)).length
-  const toolRecall = expected.length ? recalled / expected.length : 0
-  const toolPrecision = called.size ? recalled / called.size : 0
-  const toolF1 = toolRecall + toolPrecision === 0 ? 0 : (2 * toolRecall * toolPrecision) / (toolRecall + toolPrecision)
-  const totalCalls = toolCalls.length
-  const validCalls = toolCalls.filter((call) => call.valid).length
-  const argValidityRate = totalCalls ? validCalls / totalCalls : 1
-  const unknownToolCalls = toolCalls.filter((call) => !schemaNames.has(call.name)).length
-  return { toolRecall, toolPrecision, toolF1, argValidityRate, unknownToolCalls }
-}
-
 function mean(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
-}
-
-function toNamedArgs(name, parsed) {
-  const schema = registry.TOOL_SCHEMAS.find((entry) => entry.function.name === name)
-  const paramNames = schema ? Object.keys(schema.function.parameters.properties) : []
-  const named = {}
-  parsed.positionalArgs.forEach((value, index) => {
-    if (index < paramNames.length) named[paramNames[index]] = value
-  })
-  Object.assign(named, parsed.keywordArgs)
-  return named
-}
-
-function isCallValid(name, argValues) {
-  const schema = registry.TOOL_SCHEMAS.find((entry) => entry.function.name === name)
-  if (!schema) return false
-  const props = schema.function.parameters.properties
-  for (const [key, value] of Object.entries(argValues)) {
-    const prop = props[key]
-    if (!prop) return false
-    if (Array.isArray(prop.enum) && !prop.enum.map((entry) => String(entry)).includes(String(value))) return false
-  }
-  return true
-}
-
-function normArg(value) {
-  return typeof value === 'string' ? value.trim().toLowerCase() : value
-}
-
-function argsMatch(expected, actual) {
-  return Object.entries(expected).every(([key, value]) => normArg(actual[key]) === normArg(value))
 }
 
 function countTokens(response) {
@@ -232,62 +194,41 @@ async function runCase(fixture, fixtureIndex, mode, caseTopK) {
     chainError = error instanceof Error ? error.message : String(error)
   }
 
-  const selectedNames =
-    retrieval && retrieval.selectedNames.length > 0
-      ? retrieval.selectedNames
-      : registry.TOOL_SCHEMAS.map((schema) => schema.function.name)
-  const toolSchemas = registry.pruneSchemas(selectedNames)
-  const history = [{ role: 'user', content: fixture.query }]
-  const toolCalls = []
-  const roundsMs = []
-  const toolResults = []
+  const selectedNames = retrieval ? retrieval.selectedNames : []
+  const rows = retrieval?.rows ?? []
+  const retrievalMs = retrieval?.stats.latencyMs ?? 0
+
+  let currentTheme = 'amber'
+  let appliedTheme = null
+  let injectedNames = []
+  let injectedText = ''
   let finalAnswer = ''
   let tokensGenerated = 0
+  let generationMs = 0
 
   if (!chainError) {
     try {
-      for (let round = 0; round < MAX_ROUNDS; round++) {
-        const roundStarted = performance.now()
+      const theme = registry.decideAction(fixture.query, rows, currentTheme)
+      if (theme) {
+        appliedTheme = theme
+        currentTheme = theme
+        finalAnswer = cleanAnswer(themeConfirmation(theme))
+      } else {
+        const built = await registry.buildContextText(selectedNames)
+        injectedNames = built.names
+        injectedText = built.text
         if (!chatOk) throw new Error('chat model failed to load')
+        const roundStarted = performance.now()
         const response = await chat.generate(
-          [{ role: 'system', content: registry.buildSystemPrompt(selectedNames) }, ...history],
-          toolSchemas,
+          [
+            { role: 'system', content: registry.buildSystemPrompt(injectedText) },
+            { role: 'user', content: fixture.query },
+          ],
           noop,
         )
-        roundsMs.push(Math.round(performance.now() - roundStarted))
+        generationMs = Math.round(performance.now() - roundStarted)
         tokensGenerated += countTokens(response)
-        history.push({ role: 'assistant', content: response })
         finalAnswer = cleanAnswer(response)
-
-        const calls = registry.extractToolCalls(response)
-        if (calls.length === 0) break
-
-        const results = []
-        for (const raw of calls) {
-          const parsed = registry.parsePythonicCalls(raw)
-          const name = parsed?.name ?? '<unparsed>'
-          const argValues = parsed ? toNamedArgs(name, parsed) : {}
-          const executed = await registry.executeToolCall(raw)
-          const valid = isCallValid(name, argValues)
-          const expectedArgHit =
-            fixture.expectedArgs?.[name] === undefined ? valid : argsMatch(fixture.expectedArgs[name], argValues)
-          toolCalls.push({
-            round,
-            raw,
-            name,
-            args: argValues,
-            valid,
-            expectedArgHit,
-            result: executed.result ?? null,
-            error: executed.error ?? null,
-          })
-          results.push(executed)
-          toolResults.push(executed.result ?? executed.error ?? null)
-        }
-        history.push({
-          role: 'tool',
-          content: JSON.stringify(results.map((result) => result.result ?? result.error ?? null)),
-        })
       }
     } catch (error) {
       chainError = error instanceof Error ? error.message : String(error)
@@ -295,20 +236,21 @@ async function runCase(fixture, fixtureIndex, mode, caseTopK) {
   }
 
   const totalMs = Math.round(performance.now() - startedAt)
-  const timings = {
-    retrievalMs: retrieval?.stats.latencyMs ?? 0,
-    roundsMs,
-    totalMs,
-    tokensGenerated,
-  }
-  const score = judge.assess(fixture, { finalAnswer, toolResults, toolCalls, selectedNames, timings })
+  const timings = { retrievalMs, generationMs, totalMs, tokensGenerated }
+  const score = judge.assess(fixture, {
+    finalAnswer,
+    injectedNames,
+    injectedText,
+    appliedTheme,
+    sourceTexts,
+  })
 
-  const toolMetrics = computeToolMetrics(toolCalls, fixture.expected)
-  const retrievalPass = retrieval ? hitAtK(retrieval.selectedNames, fixture.expected, caseTopK) : 0
-  const toolsPass =
-    toolMetrics.toolRecall === 1 && toolMetrics.argValidityRate === 1 && toolMetrics.unknownToolCalls === 0
+  const retrievalPass = hitAtK(selectedNames, fixture.expected, caseTopK) === 1
+  const injectionPass =
+    fixture.expected.length > 0 && fixture.expected.some((name) => injectedNames.includes(name))
+  const actionPass = fixture.expectAction ? score.appliedActionMatched : true
   const answerPass = score.pass
-  const chainPass = toolsPass && answerPass
+  const chainPass = answerPass && (fixture.expectAction ? actionPass : injectionPass)
 
   return {
     fixtureIndex,
@@ -316,13 +258,15 @@ async function runCase(fixture, fixtureIndex, mode, caseTopK) {
     mode,
     effectiveMode: retrieval?.stats.effective ?? 'lexical',
     selectedNames,
-    rows: retrieval?.rows ?? [],
-    toolCalls,
+    rows,
+    injectedNames,
+    appliedTheme,
     finalAnswer,
     timings,
     score,
-    retrievalPass: retrievalPass === 1,
-    toolsPass,
+    retrievalPass,
+    injectionPass,
+    actionPass,
     answerPass,
     chainPass,
     error: chainError,
@@ -344,21 +288,16 @@ function aggregateMode(modeName, cases) {
     n: group.length,
     retrievalHitRate: mean(group.map((entry) => (entry.retrievalPass ? 1 : 0))),
     retrievalMRR: mean(group.map((entry) => mrr(entry.rows, fixtureOf(entry.fixtureIndex).expected))),
-    toolRecall: mean(
-      group.map((entry) => computeToolMetrics(entry.toolCalls, fixtureOf(entry.fixtureIndex).expected).toolRecall),
-    ),
-    toolF1: mean(
-      group.map((entry) => computeToolMetrics(entry.toolCalls, fixtureOf(entry.fixtureIndex).expected).toolF1),
-    ),
-    argValidityRate: mean(
-      group.map((entry) => computeToolMetrics(entry.toolCalls, fixtureOf(entry.fixtureIndex).expected).argValidityRate),
+    injectionCoverRate: mean(group.map((entry) => (entry.injectionPass ? 1 : 0))),
+    actionPassRate: mean(
+      group
+        .filter((entry) => fixtureOf(entry.fixtureIndex).expectAction)
+        .map((entry) => (entry.actionPass ? 1 : 0)),
     ),
     factRecall: mean(group.map((entry) => entry.score.factRecall)),
     faithfulness: mean(group.map((entry) => entry.score.faithfulness)),
     hallucinationRate: mean(group.map((entry) => (entry.score.bannedViolation ? 1 : 0))),
-    meanRounds: mean(group.map((entry) => entry.timings.roundsMs.length)),
     meanTotalLatencyMs: mean(group.map((entry) => entry.timings.totalMs)),
-    toolPassRate: mean(group.map((entry) => (entry.toolsPass ? 1 : 0))),
     answerPassRate: mean(group.map((entry) => (entry.answerPass ? 1 : 0))),
     chainPassRate: mean(group.map((entry) => (entry.chainPass ? 1 : 0))),
   }
@@ -371,7 +310,7 @@ function aggregateTraces(traceCases, sources, modeName, caseTopK) {
     mode: modeName,
     topK: caseTopK,
     retrievalCoverRate: mean(traceCases.map((entry) => (entry.retrievalCovered ? 1 : 0))),
-    toolValidRate: mean(traceCases.map((entry) => (entry.toolValid ? 1 : 0))),
+    actionValidRate: mean(traceCases.map((entry) => (entry.actionValid ? 1 : 0))),
     groundedRate: mean(traceCases.map((entry) => (entry.groundedness >= 0.8 ? 1 : 0))),
     bannedViolationRate: mean(traceCases.map((entry) => (entry.bannedViolation ? 1 : 0))),
     passRate: mean(traceCases.map((entry) => (entry.pass ? 1 : 0))),
@@ -382,31 +321,21 @@ function aggregateTraces(traceCases, sources, modeName, caseTopK) {
 /* Artifact writer (frontend/src/data/evalResults.ts)                  */
 /* ------------------------------------------------------------------ */
 
-const INTERFACE_TEXT = `export interface ToolCallRecord {
-  round: number
-  raw: string
-  name: string
-  args: Record<string, unknown>
-  valid: boolean
-  expectedArgHit: boolean
-  result: unknown | null
-  error: string | null
-}
-
-export interface StageTiming {
+const INTERFACE_TEXT = `export interface StageTiming {
   retrievalMs: number
-  roundsMs: number[]
+  generationMs: number
   totalMs: number
   tokensGenerated: number
 }
 
 export interface AnswerScore {
   factRecall: number
-  factsMissedDueToToolMiss: string[]
+  factsMissedDueToRetrievalMiss: string[]
   bannedViolation: boolean
   faithfulness: number
   unsupportedSentences: string[]
   pass: boolean
+  appliedActionMatched: boolean
 }
 
 export interface ToolScoreRow {
@@ -422,13 +351,15 @@ export interface CaseResult {
   mode: string
   effectiveMode: string
   selectedNames: string[]
+  injectedNames: string[]
   rows: ToolScoreRow[]
-  toolCalls: ToolCallRecord[]
+  appliedTheme: string | null
   finalAnswer: string
   timings: StageTiming
   score: AnswerScore
   retrievalPass: boolean
-  toolsPass: boolean
+  injectionPass: boolean
+  actionPass: boolean
   answerPass: boolean
   chainPass: boolean
   error: string | null
@@ -439,17 +370,14 @@ export interface ModeAggregate {
   n: number
   retrievalHitRate: number
   retrievalMRR: number
-  toolRecall: number
-  toolF1: number
-  argValidityRate: number
+  injectionCoverRate: number
+  actionPassRate: number
   factRecall: number
   faithfulness: number
   hallucinationRate: number
-  meanRounds: number
   meanTotalLatencyMs: number
-  chainPassRate: number
-  toolPassRate: number
   answerPassRate: number
+  chainPassRate: number
 }
 
 export interface TraceAggregate {
@@ -458,7 +386,7 @@ export interface TraceAggregate {
   mode: string
   topK: number
   retrievalCoverRate: number
-  toolValidRate: number
+  actionValidRate: number
   groundedRate: number
   bannedViolationRate: number
   passRate: number
@@ -469,7 +397,7 @@ export interface EvalResults {
   config: {
     modes: string[]
     topK: number
-    maxRounds: number
+    maxInjectChars: number
     sampling: boolean
     device: 'cpu'
     dtype: 'q8' | 'q4'
@@ -551,27 +479,28 @@ for (const mode of modes) {
     cases.push(result)
 
     const marker = result.chainPass ? 'PASS' : 'FAIL'
-    const called = [...new Set(result.toolCalls.map((call) => call.name))]
+    const signal = result.appliedTheme
+      ? `action → ${result.appliedTheme}`
+      : `injected ${result.injectedNames.length ? result.injectedNames.join(', ') : '(none)'}`
     const line =
-      `[${marker}] ${result.query} → ${called.join(', ') || '(none)'} · ` +
+      `[${marker}] ${result.query} → ${signal} · ` +
       `factRecall ${result.score.factRecall.toFixed(2)} · faithfulness ${result.score.faithfulness.toFixed(2)} · ` +
-      `rounds ${result.timings.roundsMs.length} · ${result.timings.totalMs}ms`
+      `${result.timings.totalMs}ms`
     console.log(result.error ? `${line} · error: ${result.error}` : line)
   }
 
   const aggregate = aggregateMode(mode, cases)
-  const mrrAggregate = aggregate.retrievalMRR
   console.log(
-    `${mode}: hit@${topK} = ${(aggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${mrrAggregate.toFixed(3)}`,
+    `${mode}: hit@${topK} = ${(aggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${aggregate.retrievalMRR.toFixed(3)}`,
   )
   console.log(
-    `  toolRecall = ${aggregate.toolRecall.toFixed(2)} · toolF1 = ${aggregate.toolF1.toFixed(2)} · argValidity = ${(aggregate.argValidityRate * 100).toFixed(0)}%`,
+    `  injectionCover = ${(aggregate.injectionCoverRate * 100).toFixed(0)}% · actionPass = ${(aggregate.actionPassRate * 100).toFixed(0)}%`,
   )
   console.log(
     `  factRecall = ${aggregate.factRecall.toFixed(2)} · faithfulness = ${aggregate.faithfulness.toFixed(2)} · hallucination = ${(aggregate.hallucinationRate * 100).toFixed(0)}%`,
   )
   console.log(
-    `  rounds = ${aggregate.meanRounds.toFixed(2)} · latency = ${Math.round(aggregate.meanTotalLatencyMs)}ms · toolPass = ${(aggregate.toolPassRate * 100).toFixed(0)}% · answerPass = ${(aggregate.answerPassRate * 100).toFixed(0)}% · chainPass = ${(aggregate.chainPassRate * 100).toFixed(0)}%`,
+    `  latency = ${Math.round(aggregate.meanTotalLatencyMs)}ms · answerPass = ${(aggregate.answerPassRate * 100).toFixed(0)}% · chainPass = ${(aggregate.chainPassRate * 100).toFixed(0)}%`,
   )
 }
 
@@ -594,11 +523,17 @@ let traceCases = []
 if (loadedTraces.length > 0) {
   console.log(`\n=== runtime traces (${traceMode}, top ${topK}) ===`)
   for (const trace of loadedTraces) {
-    const result = await scoreTrace(trace, { retriever, registry, judge, mode: traceMode, topK })
+    const result = await scoreTrace(trace, {
+      retriever,
+      judge,
+      sourceTexts,
+      mode: traceMode,
+      topK,
+    })
     traceCases.push(result)
     const marker = result.pass ? 'PASS' : 'FAIL'
     console.log(
-      `[${marker}] ${result.name || result.id} → covered:${result.retrievalCovered ? 'y' : 'n'} · valid:${result.toolValid ? 'y' : 'n'} · grounded ${result.groundedness.toFixed(2)} · banned:${result.bannedViolation ? 'y' : 'n'}`,
+      `[${marker}] ${result.name || result.id} → covered:${result.retrievalCovered ? 'y' : 'n'} · action:${result.actionValid ? 'y' : 'n'} · grounded ${result.groundedness.toFixed(2)} · banned:${result.bannedViolation ? 'y' : 'n'}`,
     )
   }
   traceAggregate = aggregateTraces(
@@ -608,7 +543,7 @@ if (loadedTraces.length > 0) {
     topK,
   )
   console.log(
-    `traces: ${traceAggregate.count} · retrievalCover = ${(traceAggregate.retrievalCoverRate * 100).toFixed(0)}% · toolValid = ${(traceAggregate.toolValidRate * 100).toFixed(0)}% · grounded = ${(traceAggregate.groundedRate * 100).toFixed(0)}% · banned = ${(traceAggregate.bannedViolationRate * 100).toFixed(0)}% · pass = ${(traceAggregate.passRate * 100).toFixed(0)}%`,
+    `traces: ${traceAggregate.count} · retrievalCover = ${(traceAggregate.retrievalCoverRate * 100).toFixed(0)}% · actionValid = ${(traceAggregate.actionValidRate * 100).toFixed(0)}% · grounded = ${(traceAggregate.groundedRate * 100).toFixed(0)}% · banned = ${(traceAggregate.bannedViolationRate * 100).toFixed(0)}% · pass = ${(traceAggregate.passRate * 100).toFixed(0)}%`,
   )
 }
 
@@ -618,7 +553,7 @@ await writeArtifact({
   config: {
     modes,
     topK,
-    maxRounds: MAX_ROUNDS,
+    maxInjectChars: registry.MAX_INJECT_CHARS ?? 1800,
     sampling: samplingEnabled,
     device: 'cpu',
     dtype,

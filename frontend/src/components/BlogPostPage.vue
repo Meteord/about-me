@@ -14,7 +14,8 @@ const formatLatency = (ms: number): string =>
   ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
 const caseReason = (entry: CaseResult): string => {
   if (!entry.retrievalPass) return 'retrieval missed'
-  if (!entry.toolsPass) return 'wrong tool call'
+  if (entry.appliedTheme) return 'action misfired'
+  if (!entry.injectionPass) return 'expected source not injected'
   if (!entry.answerPass) return 'answer drifted'
   return 'chain failed'
 }
@@ -58,7 +59,7 @@ const evalAggregate = computed(() => {
 const diagramSvg = ref('')
 const diagramFailed = ref(false)
 const diagramLabel =
-  'Request flow: you ask a question, the tool retriever ranks the tools by BM25 and vector search, and Mini-Michi streams a reply, calling tools back through the retriever when needed.'
+  "Request flow: you ask a question, the content retriever ranks the site's sources by BM25 and vector search, the top sources are injected into the context, and Mini-Michi streams a single-pass answer. Theme changes are applied directly by the retriever."
 
 const previousTitle = document.title
 
@@ -89,10 +90,10 @@ onMounted(async () => {
     const { svg } = await mermaid.render(
       'mm-request-flow',
       `flowchart LR
-      A["You<br/>ask a question"] --> B["Tool retriever<br/>BM25 + vector · top-k"]
-      B --> C["Mini-Michi<br/>LFM2.5-350M"]
-      C -- "tool call" --> B
-      C --> D["Reply<br/>streamed tokens"]`,
+      A["You<br/>ask a question"] --> B["Content retriever<br/>BM25 + vector · top-k"]
+      B --> C["Mini-Michi<br/>LFM2.5-350M<br/>context injection"]
+      C --> D["Reply<br/>streamed tokens"]
+      B -. "theme request" .-> E["Apply action<br/>directly"]`,
     )
     diagramSvg.value = svg
   } catch {
@@ -144,7 +145,8 @@ onBeforeUnmount(() => {
       <p class="tech-how__lead blog-post__lead" data-anim="lead">
         This page has no backend — everything runs on-device in your browser. Mini-Michi is a small
         language model streamed over WebGPU or WebAssembly, and before each reply a retrieval step
-        picks the most relevant tools so the model only sees the schemas it actually needs.
+        picks the most relevant content sources and injects them into the context, so the model only
+        ever reads what it needs. Theme changes are applied directly by the retriever.
       </p>
 
       <h2 class="blog-post__subhead" data-anim="card">
@@ -165,8 +167,9 @@ onBeforeUnmount(() => {
             <span class="blog-flow__fallback-kicker"
               >The diagram couldn't render, but here's the flow:</span
             >
-            You ask a question → Tool retriever (BM25 + vector · top-k) → Mini-Michi (LFM2.5-350M) →
-            Reply (streamed tokens), with tool calls looping back through the retriever.
+            You ask a question → Content retriever (BM25 + vector · top-k) → the top sources are
+            injected into the context → Mini-Michi (LFM2.5-350M) streams a single-pass reply. Theme
+            requests skip the model and are applied directly by the retriever.
           </p>
         </div>
         <div v-else class="blog-flow__diagram blog-flow__diagram--loading">
@@ -261,9 +264,9 @@ onBeforeUnmount(() => {
       <div class="eval-results" data-anim="card">
         <template v-if="evalResults.fixtures > 0">
           <p class="eval-results__meta">
-            The numbers below come from a real run of the whole on-device chain — retrieval → tool
-            selection → {{ evalResults.config.chatModel }} → tool calls → final answer — scored by a
-            deterministic judge.
+            The numbers below come from a real run of the whole on-device chain — retrieval →
+            content injection (or a direct theme action) → {{ evalResults.config.chatModel }} →
+            final answer — scored by a deterministic judge.
           </p>
           <p class="eval-results__meta">
             Generated
@@ -274,12 +277,13 @@ onBeforeUnmount(() => {
             {{ evalResults.config.sampling ? 'sampling' : 'greedy' }} · top-{{
               evalResults.config.topK
             }}
-            · max {{ evalResults.config.maxRounds }} rounds.
+            · ≤ {{ evalResults.config.maxInjectChars }} chars injected.
           </p>
           <p class="eval-results__legend">
-            hit@5 — the right tool is in the top 5 · tool recall — the model calls it · fact recall
-            — the answer keeps the retrieved facts · faithfulness — every sentence stays grounded in
-            them · chain pass — retrieval, tools and answer together.
+            hit@5 — the right source is in the top 5 · injection cover — that source actually makes
+            it into the context · fact recall — the answer keeps the retrieved facts · faithfulness
+            — every sentence stays grounded in them · chain pass — retrieval, injection/action and
+            answer together.
           </p>
 
           <div class="eval-modes">
@@ -291,8 +295,8 @@ onBeforeUnmount(() => {
                   <dd>{{ pct(mode.retrievalHitRate) }}</dd>
                 </div>
                 <div class="eval-mode__stat">
-                  <dt>tool recall</dt>
-                  <dd>{{ pct(mode.toolRecall) }}</dd>
+                  <dt>injection cover</dt>
+                  <dd>{{ pct(mode.injectionCoverRate) }}</dd>
                 </div>
                 <div class="eval-mode__stat">
                   <dt>fact recall</dt>
@@ -307,8 +311,8 @@ onBeforeUnmount(() => {
                   <dd>{{ formatLatency(mode.meanTotalLatencyMs) }}</dd>
                 </div>
                 <div class="eval-mode__stat">
-                  <dt>rounds</dt>
-                  <dd>{{ mode.meanRounds.toFixed(2) }}</dd>
+                  <dt>action pass</dt>
+                  <dd>{{ pct(mode.actionPassRate) }}</dd>
                 </div>
                 <div class="eval-mode__stat eval-mode__stat--pass">
                   <dt>chain pass</dt>
@@ -321,10 +325,12 @@ onBeforeUnmount(() => {
           <aside class="eval-takeaway">
             <h4 class="eval-takeaway__title">What this tells us</h4>
             <p class="eval-takeaway__text" v-if="evalAggregate">
-              Retrieval never misses — the right tools are always in context. The 350M model is the
-              bottleneck: it pulls the right facts ({{ pct(evalAggregate.factRecall) }}) but drifts
-              in the final answer ({{ pct(evalAggregate.faithfulness) }} faithful), so only
-              {{ pct(evalAggregate.chainPassRate) }} of runs pass end to end.
+              Retrieval reliably finds the right source and the retrieved content is injected into
+              the context. The 350M model reads from it and keeps the facts ({{
+                pct(evalAggregate.factRecall)
+              }}), stays grounded ({{ pct(evalAggregate.faithfulness) }} faithful), and
+              {{ pct(evalAggregate.chainPassRate) }} of runs pass end to end — theme changes are
+              applied directly by the retriever, no model call required.
             </p>
           </aside>
 
@@ -348,10 +354,11 @@ onBeforeUnmount(() => {
                 }}<template v-if="entry.effectiveMode !== entry.mode">
                   → {{ entry.effectiveMode }}</template
                 >
-                · tools:
-                {{
-                  entry.toolCalls.length ? entry.toolCalls.map((c) => c.name).join(', ') : 'none'
-                }}
+                <template v-if="entry.appliedTheme"> · action: {{ entry.appliedTheme }}</template>
+                <template v-else>
+                  · injected:
+                  {{ entry.injectedNames.length ? entry.injectedNames.join(', ') : 'none' }}
+                </template>
               </p>
               <p v-if="!entry.chainPass" class="eval-case__reason">{{ caseReason(entry) }}</p>
               <div class="eval-case__bars">
@@ -398,8 +405,8 @@ onBeforeUnmount(() => {
                 <dd>{{ pct(evalResults.traces.retrievalCoverRate) }}</dd>
               </div>
               <div>
-                <dt>tool valid</dt>
-                <dd>{{ pct(evalResults.traces.toolValidRate) }}</dd>
+                <dt>action valid</dt>
+                <dd>{{ pct(evalResults.traces.actionValidRate) }}</dd>
               </div>
               <div>
                 <dt>grounded</dt>
@@ -414,14 +421,14 @@ onBeforeUnmount(() => {
 
           <p class="eval-results__footnote">
             Nothing here is simulated — every number comes from a real run of the on-device chain
-            (retrieval → {{ evalResults.config.chatModel }} → tools → answer). To refresh it, run
+            (retrieval → {{ evalResults.config.chatModel }} → answer). To refresh it, run
             <code>npm run eval:chain</code> from <code>frontend/</code>.
           </p>
         </template>
         <p v-else class="eval-results__empty">
           No evaluation results committed yet. Run <code>npm run eval:chain</code> from
-          <code>frontend/</code> to measure the whole agent chain — retrieval → tool calls → final
-          answer — and this section will render the numbers.
+          <code>frontend/</code> to measure the whole on-device chain — retrieval → content
+          injection → final answer — and this section will render the numbers.
         </p>
       </div>
 
@@ -429,7 +436,7 @@ onBeforeUnmount(() => {
         <span class="blog-post__closer-tag">Try it yourself</span>
         <p class="blog-post__closer-text">
           The thing this article describes is running on this page. Ask Mini-Michi in the dock what
-          BM25 means or which tools are in context — the reply is streamed to your browser by
+          BM25 means or which sources are in context — the reply is streamed to your browser by
           LFM2.5-350M.
         </p>
       </div>

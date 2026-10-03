@@ -2,13 +2,15 @@
 import { computed, ref, watch } from 'vue'
 import { MODEL_STATUS_LABEL, humanizeModelError, useChatModel } from '../composables/useChatModel'
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
+import { useSiteLayout } from '../composables/useSiteLayout'
 import { toolSelectorOpen, sampling } from '../composables/retrievalSettings'
-import { TOOL_SCHEMAS } from '../tools/registry'
+import { SOURCE_DEFS, decideAction } from '../tools/registry'
 
 defineProps<{ onClear?: () => void }>()
 
 const { state: chatState, loadModel } = useChatModel()
 const { mode, topK, lastQuery, lastResult, vector, retrieve, loadVector } = useToolRetrieval()
+const { state: layout } = useSiteLayout()
 
 const MODES: RetrievalMode[] = ['lexical', 'vector', 'hybrid']
 const MODE_LABEL: Record<RetrievalMode, string> = {
@@ -25,10 +27,8 @@ const SAMPLES = [
   'How can I contact Michael?',
 ]
 
-const TOTAL = TOOL_SCHEMAS.length
-const DESCRIPTION = new Map(
-  TOOL_SCHEMAS.map((tool) => [tool.function.name, tool.function.description]),
-)
+const TOTAL = SOURCE_DEFS.length
+const DESCRIPTION = new Map(SOURCE_DEFS.map((def) => [def.name, def.description]))
 
 const query = ref('')
 const busy = ref(false)
@@ -95,6 +95,12 @@ const prunedPercent = computed(() => {
   const { totalChars, prunedChars } = lastResult.value.stats
   return Math.round((prunedChars / totalChars) * 100)
 })
+
+/** Whether the set_theme action would actually fire for the current query. */
+const themeActed = computed(() => {
+  if (!lastResult.value || !lastQuery.value) return false
+  return decideAction(lastQuery.value, lastResult.value.rows, layout.theme) !== null
+})
 </script>
 
 <template>
@@ -108,7 +114,7 @@ const prunedPercent = computed(() => {
     >
       <span class="tool-selector__heading">
         <span class="tool-selector__title">Model settings</span>
-        <span class="tool-selector__tagline">chat model + tool retriever</span>
+        <span class="tool-selector__tagline">chat model + content retriever</span>
       </span>
       <span
         class="ai-status__badge tool-selector__bar-status"
@@ -185,15 +191,15 @@ const prunedPercent = computed(() => {
         </div>
 
         <div class="model-settings__section">
-          <p class="model-settings__heading">Tool retriever</p>
+          <p class="model-settings__heading">Content retriever</p>
           <p class="tool-selector__intro">
-            Before every reply, Mini-Michi matches your question against every tool and sends only
-            the few most relevant descriptions to the chat model — it never has to look at all
-            {{ TOTAL }} at once.
+            Before every reply, Mini-Michi matches your question against every content source and
+            action and injects only the few most relevant sources into the chat context — the model
+            never sees all {{ TOTAL }} at once, and actions are applied directly by the retriever.
           </p>
           <p class="tool-selector__intro tool-selector__intro--tech">
             Under the hood: an on-device zero-shot prompt-router checkpoint (LFM2.5-Encoder-350M)
-            fused with BM25 over the enriched tool index via reciprocal rank fusion.
+            fused with BM25 over the enriched source index via reciprocal rank fusion.
           </p>
 
           <div class="tool-selector__controls">
@@ -237,7 +243,7 @@ const prunedPercent = computed(() => {
                 <button
                   type="button"
                   class="tool-selector__step"
-                  aria-label="Retrieve fewer tools"
+                  aria-label="Retrieve fewer candidates"
                   :disabled="busy"
                   @click="bumpTopK(-1)"
                 >
@@ -247,7 +253,7 @@ const prunedPercent = computed(() => {
                 <button
                   type="button"
                   class="tool-selector__step"
-                  aria-label="Retrieve more tools"
+                  aria-label="Retrieve more candidates"
                   :disabled="busy"
                   @click="bumpTopK(1)"
                 >
@@ -297,27 +303,34 @@ const prunedPercent = computed(() => {
                   ></i>
                 </span>
                 <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
-                <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+                <span
+                  v-if="row.name === 'set_theme' && themeActed"
+                  class="tool-result__tag tool-result__tag--acted"
+                  >ACTED</span
+                >
+                <span v-else-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
               </li>
             </ol>
 
             <p class="tool-selector__stats">
-              {{ lastResult.stats.total }} tools · top {{ lastResult.stats.selected }} selected ·
+              {{ lastResult.stats.total }} candidates · top {{ lastResult.stats.selected }} selected
+              ·
               {{
                 lastResult.stats.effective === lastResult.stats.mode
                   ? lastResult.stats.mode
                   : lastResult.stats.effective + ' (fallback)'
               }}
-              · ~{{ prunedPercent }}% of schemas pruned · {{ lastResult.stats.latencyMs }}ms
+              · ~{{ prunedPercent }}% pruned · {{ lastResult.stats.latencyMs }}ms
             </p>
             <p class="tool-selector__stats tool-selector__stats--gloss">
-              → only those tool descriptions are passed to the chat model.
+              → only those sources are injected into the chat context.
             </p>
           </div>
 
           <div v-else class="tool-selector__empty">
             <p class="pixel-chat__hint">
-              Type a request to see which tools get pre-selected for the chat model.
+              Type a request to see which content sources and actions get pre-selected for the chat
+              model.
             </p>
             <div class="pixel-tags tool-selector__samples">
               <button

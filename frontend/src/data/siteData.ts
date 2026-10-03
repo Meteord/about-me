@@ -118,9 +118,9 @@ export const siteData = {
       icon: 'chip',
     },
     {
-      name: 'Tool retriever — LFM2.5 prompt router',
+      name: 'Content retriever — LFM2.5 prompt router',
       description:
-        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. In vector mode, a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8) scores the request against all tool names. BM25 over an alias-enriched index is the instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion.',
+        'Before every reply, a retrieval step ranks the site\u2019s content sources and injects only the most relevant ones into the chat context. In vector mode, a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8) scores the request against all source names. BM25 over an alias-enriched index is the instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion. Theme changes are applied directly by the retriever \u2014 the model never calls a tool.',
       link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX',
       tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'q8', 'BM25', 'RRF'],
       icon: 'funnel',
@@ -131,13 +131,13 @@ export const siteData = {
       label: 'ColBERT tool-selection demo',
       url: 'https://huggingface.co/spaces/LiquidAI/colbert-tool-selection',
       description:
-        'LiquidAI\u2019s demo that inspired the tool-selector concept: it retrieves the top-5 most relevant tools out of 151 with a retriever instead of stuffing every schema into the context window.',
+        'LiquidAI\u2019s demo that inspired the content-retriever concept: it retrieves the top-5 most relevant tools out of 151 with a retriever instead of stuffing every schema into the context window.',
     },
     {
       label: 'LFM2.5 retrievers blog',
       url: 'https://www.liquid.ai/blog/lfm2-5-retrievers',
       description:
-        'LiquidAI\u2019s blog post on prompt-routing and retrieval, the idea behind scoring a request against all tool names in a single pass.',
+        'LiquidAI\u2019s blog post on prompt-routing and retrieval, the idea behind scoring a request against all source names in a single pass.',
     },
   ] as ArticleLink[],
   blog: [
@@ -146,7 +146,7 @@ export const siteData = {
       title: 'Chat with my website',
       date: '2026-09-20',
       teaser:
-        'How Mini-Michi, the on-device assistant in the dock, runs a real language model in your browser — and why it only ever sees the tool schemas it actually needs.',
+        'How Mini-Michi, the on-device assistant in the dock, runs a real language model in your browser — and why it only ever reads the content sources it actually needs.',
       readTime: '3 min',
     },
   ] as BlogPost[],

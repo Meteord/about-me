@@ -12,9 +12,28 @@ import { readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { BANNED_TRACE_FACTS } from './eval-fixtures.mjs'
 
+const THEME_ORDER = ['amber', 'orange', 'red']
+
 /* ------------------------------------------------------------------ */
 /* STS-format parsing & validation                                     */
 /* ------------------------------------------------------------------ */
+
+const INJECTED_RE = /\binjected:\s*([a-zA-Z0-9_:,\s-]+)/
+
+function parseSystemContent(content) {
+  const text = String(content ?? '')
+  const actionMatch = text.match(/^action:\s*(\w+)$/)
+  const injectedMatch = text.match(INJECTED_RE)
+  return {
+    appliedTheme: actionMatch ? actionMatch[1] : null,
+    injectedNames: injectedMatch
+      ? injectedMatch[1]
+          .split(',')
+          .map((name) => name.trim())
+          .filter(Boolean)
+      : [],
+  }
+}
 
 export function parseTraceJsonl(text, source) {
   const errors = []
@@ -42,6 +61,8 @@ export function parseTraceJsonl(text, source) {
   const id = typeof header.id === 'string' ? header.id : 'unnamed'
   const name = typeof header.name === 'string' ? header.name : id
   const turns = []
+  let appliedTheme = null
+  const injectedNames = []
 
   for (let i = 1; i < lines.length; i++) {
     let entry
@@ -56,15 +77,18 @@ export function parseTraceJsonl(text, source) {
       errors.push(`line ${i + 1}: expected a message envelope ({"type":"message","message":{...}}) — trace skipped`)
       return { trace: null, errors }
     }
-    if (!['user', 'assistant', 'system', 'tool'].includes(message.role)) {
+    if (!['user', 'assistant', 'system'].includes(message.role)) {
       errors.push(`line ${i + 1}: unknown message role "${message.role}" — trace skipped`)
       return { trace: null, errors }
+    }
+    if (message.role === 'system') {
+      const parsed = parseSystemContent(message.content)
+      if (parsed.appliedTheme) appliedTheme = parsed.appliedTheme
+      injectedNames.push(...parsed.injectedNames)
     }
     turns.push({
       role: message.role,
       content: typeof message.content === 'string' ? message.content : '',
-      toolCalls: message.toolCalls ?? [],
-      toolCallId: message.toolCallId ?? null,
       model: message.model ?? null,
       timestamp: message.timestamp ?? null,
     })
@@ -79,22 +103,6 @@ export function parseTraceJsonl(text, source) {
   }
 
   const userQuery = turns.find((turn) => turn.role === 'user')?.content ?? ''
-  const retrievalSummary = turns.find((turn) => turn.role === 'system')?.content ?? null
-  const calledTools = []
-  for (const turn of turns) {
-    for (const toolCall of turn.toolCalls) {
-      if (toolCall?.function?.name) calledTools.push(toolCall.function.name)
-    }
-  }
-  const toolResults = turns
-    .filter((turn) => turn.role === 'tool')
-    .map((turn) => {
-      try {
-        return JSON.parse(turn.content)
-      } catch {
-        return turn.content
-      }
-    })
   const finalAnswer = assistantTexts[assistantTexts.length - 1].content
 
   const trace = {
@@ -102,10 +110,9 @@ export function parseTraceJsonl(text, source) {
     id,
     name,
     userQuery,
-    retrievalSummary,
+    appliedTheme,
+    injectedNames: [...new Set(injectedNames)],
     turns,
-    calledTools,
-    toolResults,
     finalAnswer,
   }
   return { trace, errors }
@@ -159,86 +166,74 @@ export async function loadTraceSource(spec) {
 /* Historical per-trace scoring (no re-execution)                      */
 /* ------------------------------------------------------------------ */
 
-function callsAreValid(trace, registry) {
-  const schemaNames = new Set(registry.TOOL_SCHEMAS.map((schema) => schema.function.name))
-  const schemaByName = new Map(registry.TOOL_SCHEMAS.map((schema) => [schema.function.name, schema]))
-
-  for (const turn of trace.turns) {
-    for (const toolCall of turn.toolCalls) {
-      const name = toolCall?.function?.name
-      if (!name || !schemaNames.has(name)) return false
-
-      let args = {}
-      try {
-        args = JSON.parse(toolCall.function.arguments ?? '{}')
-      } catch {
-        return false
-      }
-      if (!args || typeof args !== 'object' || Array.isArray(args)) return false
-
-      const roundTrip = `${name}(${Object.entries(args)
-        .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-        .join(', ')})`
-      const parsed = registry.parsePythonicCalls(roundTrip)
-      if (!parsed || parsed.name !== name) return false
-
-      const schema = schemaByName.get(name)
-      const props = schema.function.parameters.properties
-      for (const [key, value] of Object.entries(args)) {
-        const prop = props[key]
-        if (!prop) return false
-        if (Array.isArray(prop.enum) && !prop.enum.map((entry) => String(entry)).includes(String(value))) {
-          return false
-        }
-      }
-      if (name === 'set_theme' && typeof args.theme !== 'string') return false
-    }
-  }
-  return true
-}
-
-export async function scoreTrace(trace, { retriever, registry, judge, mode, topK }) {
+export async function scoreTrace(trace, { retriever, judge, sourceTexts, mode, topK }) {
   let retrievalCovered = false
   try {
     const result = await retriever.retrieve(trace.userQuery, { mode, topK })
     const topNames = result.selectedNames.slice(0, topK)
     retrievalCovered =
-      trace.calledTools.length > 0 && trace.calledTools.every((tool) => topNames.includes(tool))
+      trace.injectedNames.length > 0 && trace.injectedNames.every((name) => topNames.includes(name))
   } catch {
     retrievalCovered = false
   }
 
-  const toolValid = trace.calledTools.length > 0 && callsAreValid(trace, registry)
+  const actionValid =
+    trace.appliedTheme !== null && THEME_ORDER.includes(trace.appliedTheme)
 
-  const score = judge.assess(
-    {
-      query: trace.userQuery,
-      expected: [],
-      expectedArgs: {},
-      expectedAnswerFacts: [],
-      bannedFacts: BANNED_TRACE_FACTS,
-    },
-    {
-      finalAnswer: trace.finalAnswer,
-      toolResults: trace.toolResults,
-      toolCalls: [],
-      selectedNames: [],
-      timings: null,
-    },
-  )
+  let score
+  if (actionValid) {
+    score = judge.assess(
+      {
+        query: trace.userQuery,
+        expected: ['set_theme'],
+        expectAction: true,
+        expectedArgs: {},
+        expectedAnswerFacts: [],
+        bannedFacts: BANNED_TRACE_FACTS,
+      },
+      {
+        finalAnswer: trace.finalAnswer,
+        injectedNames: [],
+        injectedText: '',
+        appliedTheme: trace.appliedTheme,
+        sourceTexts,
+      },
+    )
+  } else {
+    const injectedText = (trace.injectedNames ?? [])
+      .map((name) => sourceTexts[name] ?? '')
+      .filter(Boolean)
+      .join('\n\n')
+    score = judge.assess(
+      {
+        query: trace.userQuery,
+        expected: [],
+        expectedAnswerFacts: [],
+        bannedFacts: BANNED_TRACE_FACTS,
+      },
+      {
+        finalAnswer: trace.finalAnswer,
+        injectedNames: trace.injectedNames ?? [],
+        injectedText,
+        appliedTheme: null,
+        sourceTexts,
+      },
+    )
+  }
 
   const groundedness = score.faithfulness
   const bannedViolation = score.bannedViolation
-  const pass = toolValid && retrievalCovered && groundedness >= 0.8 && !bannedViolation
+  const pass = (retrievalCovered || actionValid) && groundedness >= 0.8 && !bannedViolation
 
   return {
     source: trace.source,
     id: trace.id,
     name: trace.name,
     userQuery: trace.userQuery,
-    calledTools: trace.calledTools,
+    injectedNames: trace.injectedNames ?? [],
+    appliedTheme: trace.appliedTheme,
     retrievalCovered,
-    toolValid,
+    actionValid,
     groundedness,
     bannedViolation,
     pass,

@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import type { Tensor } from '@huggingface/transformers'
 import {
-  TOOL_SCHEMAS,
-  getToolDocs,
-  pruneSchemas,
-  schemaChars,
-  type ToolDoc,
+  SOURCE_DEFS,
+  getSourceDocs,
+  filterSources,
+  sourceChars,
+  type SourceDoc,
 } from '../tools/registry'
 import { detectDevice, type Device } from './detectDevice'
 import { mode, topK } from './retrievalSettings'
@@ -251,8 +251,8 @@ function softmax(logits: readonly number[]): number[] {
   return exponentials.map((value) => value / total)
 }
 
-/** Router over the tool docs: one forward pass, softmax across all tools. */
-async function vectorScores(query: string, docs: ToolDoc[]): Promise<number[]> {
+/** Router over the source docs: one forward pass, softmax across all candidates. */
+async function vectorScores(query: string, docs: SourceDoc[]): Promise<number[]> {
   if (!instance) throw new Error('Router not loaded.')
   const labels = docs.map((doc) => doc.name.replace(/_/g, ' '))
   const prefix = buildPrefix(labels)
@@ -394,7 +394,7 @@ function tokenize(text: string): string[] {
     .filter((token) => token.length > 1 && !STOPWORDS.has(token))
 }
 
-function lexicalScores(query: string, docs: ToolDoc[]): number[] {
+function lexicalScores(query: string, docs: SourceDoc[]): number[] {
   const terms = tokenize(query)
   const docTokens = docs.map((doc) => tokenize(doc.text))
   const docFreq: Record<string, number> = {}
@@ -458,8 +458,8 @@ export async function retrieve(
   const selectedMode = opts?.mode ?? mode.value
   const k = opts?.topK ?? topK.value
   const start = performance.now()
-  const docs = getToolDocs()
-  const totalChars = schemaChars(TOOL_SCHEMAS)
+  const docs = getSourceDocs()
+  const totalChars = sourceChars(SOURCE_DEFS)
 
   if (!query.trim()) {
     return {
@@ -509,7 +509,7 @@ export async function retrieve(
   })
 
   const selectedNames = rows.filter((row) => row.selected).map((row) => row.name)
-  const prunedChars = totalChars - schemaChars(pruneSchemas(selectedNames))
+  const prunedChars = totalChars - sourceChars(filterSources(selectedNames))
 
   lastQuery.value = query
   lastResult.value = {

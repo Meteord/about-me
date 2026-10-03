@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import type { Tensor } from '@huggingface/transformers'
-import type { ToolSchema } from '../tools/registry'
 import { detectDevice } from './detectDevice'
 import { sampling } from './retrievalSettings'
 
@@ -58,7 +57,6 @@ interface TokenizerLike {
   apply_chat_template(
     messages: { role: string; content: string }[],
     options: {
-      tools?: ToolSchema[]
       add_generation_prompt?: boolean
       return_dict?: boolean
     },
@@ -168,7 +166,6 @@ export function useChatModel() {
 
   async function generate(
     messages: { role: string; content: string }[],
-    tools: ToolSchema[],
     onToken: (token: string) => void,
   ): Promise<string> {
     if (!instance) {
@@ -181,7 +178,6 @@ export function useChatModel() {
     const { tokenizer, model, module } = instance
 
     const inputs = tokenizer.apply_chat_template(messages, {
-      tools,
       add_generation_prompt: true,
       return_dict: true,
     })

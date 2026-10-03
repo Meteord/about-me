@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import { useChatModel, CancelledError, humanizeModelError } from '../composables/useChatModel'
-import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
+import { useSiteLayout, type SectionId, type ThemeName } from '../composables/useSiteLayout'
 import { useTraceRecorder } from '../composables/useTraceRecorder'
 import { blogHref, projectsHref } from '../composables/useHashRoute'
 import {
@@ -12,20 +12,24 @@ import {
 } from '../composables/useToolRetrieval'
 import { siteData } from '../data/siteData'
 import {
-  TOOL_SCHEMAS,
+  SOURCE_DEFS,
+  buildContextText,
   buildSystemPrompt,
-  executeToolCall,
-  extractToolCalls,
-  pruneSchemas,
-  type ToolResult,
+  decideAction,
+  type SourceDef,
 } from '../tools/registry'
 import ToolSelectorPanel from './ToolSelectorPanel.vue'
+
+type ActionPayload =
+  | { kind: 'theme'; theme: ThemeName }
+  | { kind: 'contact' }
+  | { kind: 'section'; section: SectionId }
+  | { kind: 'page'; page: 'projects' }
+  | { kind: 'page'; page: 'blog'; slug: string }
 
 type ChatMessage =
   | { id: number; role: 'user'; content: string }
   | { id: number; role: 'assistant'; content: string }
-  | { id: number; role: 'tool-call'; calls: string[] }
-  | { id: number; role: 'tool-result'; results: ToolResult[] }
   | {
       id: number
       role: 'retrieval'
@@ -33,8 +37,10 @@ type ChatMessage =
       selectedNames: string[]
       rows: ToolScore[]
       stats: RetrievalStats
+      injectedNames?: string[]
       detailsOpen?: boolean
     }
+  | { id: number; role: 'action'; payload: ActionPayload }
   | { id: number; role: 'error'; content: string }
 
 const {
@@ -45,7 +51,7 @@ const {
   cancel: cancelGeneration,
   resetCancel,
 } = useChatModel()
-const { focusSection } = useSiteLayout()
+const { state: layout, focusSection, setTheme } = useSiteLayout()
 const { downloadTrace } = useTraceRecorder()
 const {
   mode: retrievalMode,
@@ -65,8 +71,6 @@ const chatEl = ref<HTMLElement | null>(null)
 const inputEl = ref<HTMLInputElement | null>(null)
 
 let nextId = 1
-
-const MAX_ROUNDS = 3
 
 const MODE_GLOSS: Record<RetrievalMode, string> = {
   lexical: 'keyword match',
@@ -93,6 +97,9 @@ const SECTION_LABEL: Record<SectionId, string> = {
   contact: 'Contact',
 }
 
+const SOURCE_BY_NAME = new Map(SOURCE_DEFS.map((def) => [def.name, def]))
+const sourceDef = (name: string): SourceDef | undefined => SOURCE_BY_NAME.get(name)
+
 const suggestions = ref<string[]>([])
 
 function pickSuggestions(count = 2): void {
@@ -113,97 +120,49 @@ function push(role: ChatMessage['role'], extra: Partial<ChatMessage> = {}): numb
   return id
 }
 
-function summarizeResults(results: ToolResult[]): string {
-  return results
-    .map((result) =>
-      result.error ? `${result.call.split('(')[0]} → error` : `${result.call.split('(')[0]} → done`,
-    )
-    .join(' · ')
-}
-
-function toolNote(results: ToolResult[]): string | null {
-  for (const result of results) {
-    if (result.result && typeof result.result === 'object') {
-      const message = (result.result as { message?: string }).message
-      if (message) return message
-    }
-  }
-  return null
-}
-
-function resultSection(results: ToolResult[]): SectionId | null {
-  for (const result of results) {
-    const section = (result.result as { section?: SectionId } | undefined)?.section
-    if (section) return section
-  }
-  return null
-}
-
-interface SpotlightHint {
-  section: SectionId
-  target?: string
-}
-
-function spotlightHint(results: ToolResult[]): SpotlightHint | null {
-  for (const result of results) {
-    const payload = result.result as
-      | { section?: SectionId; spotlight?: boolean; target?: string }
-      | undefined
-    if (payload?.spotlight && payload.section) {
-      return { section: payload.section, target: payload.target }
-    }
-  }
-  return null
-}
-
-function isContactResult(results: ToolResult[]): boolean {
-  return results.some((result) => result.kind === 'contact')
-}
-
-interface PageRoute {
-  name: 'blog' | 'projects'
-  slug?: string | null
-}
-
-function pageRoute(results: ToolResult[]): PageRoute | null {
-  for (const result of results) {
-    const route = (result.result as { route?: PageRoute } | undefined)?.route
-    if (route) return route
-  }
-  return null
-}
-
-const TOOL_DESCRIPTION = new Map(
-  TOOL_SCHEMAS.map((tool) => [tool.function.name, tool.function.description]),
-)
-
-const toolDescription = (name: string): string => TOOL_DESCRIPTION.get(name) ?? ''
-
 function prunedPercent(stats: RetrievalStats): number {
   return stats.totalChars ? Math.round((stats.prunedChars / stats.totalChars) * 100) : 0
 }
 
-function jumpTo(results: ToolResult[]): void {
-  const section = resultSection(results)
-  if (section) focusSection(section)
-}
-
-function pageHref(route: PageRoute): string {
-  return route.name === 'projects' ? projectsHref() : blogHref(route.slug ?? undefined)
-}
-
-function pageLabel(route: PageRoute): string {
-  return route.name === 'projects' ? 'View projects page' : 'View blog post'
-}
-
-function autoSpotlight(results: ToolResult[]): void {
-  const route = pageRoute(results)
-  if (route) {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    return
+/** Highest-ranked selected content source — drives the page side-effect. */
+function topContentSource(rows: ToolScore[]): SourceDef | undefined {
+  for (const row of rows) {
+    if (!row.selected) continue
+    const def = SOURCE_BY_NAME.get(row.name)
+    if (def && def.kind === 'content') return def
   }
-  const hint = spotlightHint(results)
-  if (hint) focusSection(hint.section, { target: hint.target })
+  return undefined
+}
+
+/** Whether a later theme action followed this retrieval step (so ACTED is honest). */
+function themeActed(retrievalMsg: ChatMessage): boolean {
+  const index = messages.value.indexOf(retrievalMsg)
+  if (index === -1) return false
+  return messages.value
+    .slice(index + 1)
+    .some((message) => message.role === 'action' && message.payload.kind === 'theme')
+}
+
+function actionPayloadFor(def: SourceDef | undefined): ActionPayload | null {
+  if (!def) return null
+  if (def.name === 'contact') return { kind: 'contact' }
+  if (def.section === 'projects') return { kind: 'page', page: 'projects' }
+  if (def.slug) return { kind: 'page', page: 'blog', slug: def.slug }
+  if (def.section) return { kind: 'section', section: def.section }
+  return null
+}
+
+function applyPageEffect(def: SourceDef | undefined): void {
+  if (!def) return
+  if (def.section === 'projects') {
+    window.location.hash = '#/projects'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } else if (def.slug) {
+    window.location.hash = `#/blog/${def.slug}`
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } else if (def.section) {
+    focusSection(def.section, { target: def.spotlight })
+  }
 }
 
 function escapeHtml(text: string): string {
@@ -286,22 +245,6 @@ async function handleSend(raw?: string): Promise<void> {
   const text = (raw ?? input.value).trim()
   if (!text || isGenerating.value) return
 
-  if (state.value.status !== 'ready') {
-    try {
-      await loadModel()
-    } catch {
-      return
-    }
-  }
-
-  if (
-    (retrievalMode.value === 'hybrid' || retrievalMode.value === 'vector') &&
-    vector.value.status !== 'ready' &&
-    vector.value.status !== 'loading'
-  ) {
-    void loadVector().catch(() => {})
-  }
-
   input.value = ''
   push('user', { content: text })
   modelMessages.value.push({ role: 'user', content: text })
@@ -314,79 +257,84 @@ async function handleSend(raw?: string): Promise<void> {
       topK: retrievalTopK.value,
       mode: retrievalMode.value,
     })
-    const selectedNames =
-      retrieval.selectedNames.length > 0
-        ? retrieval.selectedNames
-        : TOOL_SCHEMAS.map((tool) => tool.function.name)
-    const toolSchemas = pruneSchemas(selectedNames)
-    push('retrieval', {
+    const rows = retrieval.rows
+    const selectedNames = retrieval.selectedNames
+    const retrievalId = push('retrieval', {
       query: text,
       selectedNames,
-      rows: retrieval.rows,
+      rows,
       stats: retrieval.stats,
       detailsOpen: false,
     })
 
-    for (let round = 0; round < MAX_ROUNDS; round++) {
-      const placeholderId = push('assistant', { content: '' })
-      generatingId.value = placeholderId
+    const theme = decideAction(text, rows, layout.theme)
+    if (theme) {
+      setTheme(theme)
+      push('action', { payload: { kind: 'theme', theme } })
+      return
+    }
 
-      let streamed = ''
-      let response: string
+    if (state.value.status !== 'ready') {
       try {
-        response = await generate(
-          [{ role: 'system', content: buildSystemPrompt(selectedNames) }, ...modelMessages.value],
-          toolSchemas,
-          (token: string) => {
-            streamed += token
-            const current = messages.value.find((message) => message.id === placeholderId)
-            if (current && current.role === 'assistant') current.content = streamed
-            scrollToBottom()
-          },
-        )
-      } catch (error) {
-        if (!(error instanceof CancelledError)) throw error
-        const index = messages.value.findIndex((message) => message.id === placeholderId)
-        if (index !== -1) {
-          if (streamed) {
-            const current = messages.value[index]
-            if (current.role === 'assistant') current.content = streamed
-          } else {
-            messages.value.splice(index, 1)
-          }
-        }
-        if (streamed) modelMessages.value.push({ role: 'assistant', content: streamed })
-        break
+        await loadModel()
+      } catch {
+        push('error', {
+          content: humanizeModelError(state.value.error ?? ''),
+        })
+        return
       }
-      modelMessages.value.push({ role: 'assistant', content: response })
+    }
 
-      const calls = extractToolCalls(response)
-      if (calls.length === 0) {
-        const current = messages.value.find((message) => message.id === placeholderId)
-        if (current && current.role === 'assistant') current.content = streamed
-        generatingId.value = null
-        break
-      }
+    if (
+      (retrievalMode.value === 'hybrid' || retrievalMode.value === 'vector') &&
+      vector.value.status !== 'ready' &&
+      vector.value.status !== 'loading'
+    ) {
+      void loadVector().catch(() => {})
+    }
 
-      const results: ToolResult[] = []
-      for (const call of calls) {
-        results.push(await executeToolCall(call))
-      }
-      modelMessages.value.push({
-        role: 'tool',
-        content: JSON.stringify(results.map((result) => result.result ?? result.error ?? null)),
-      })
+    const { names: injectedNames, text: contextText } = await buildContextText(selectedNames)
+    const retrievalMsg = messages.value.find((message) => message.id === retrievalId)
+    if (retrievalMsg && retrievalMsg.role === 'retrieval') {
+      retrievalMsg.injectedNames = injectedNames
+    }
+    const topSource = topContentSource(rows)
+    const payload = actionPayloadFor(topSource)
+    if (payload) {
+      applyPageEffect(topSource)
+      push('action', { payload })
+    }
 
-      autoSpotlight(results)
+    const placeholderId = push('assistant', { content: '' })
+    generatingId.value = placeholderId
 
+    let streamed = ''
+    let response: string
+    try {
+      response = await generate(
+        [{ role: 'system', content: buildSystemPrompt(contextText) }, ...modelMessages.value],
+        (token: string) => {
+          streamed += token
+          const current = messages.value.find((message) => message.id === placeholderId)
+          if (current && current.role === 'assistant') current.content = streamed
+          scrollToBottom()
+        },
+      )
+    } catch (error) {
+      if (!(error instanceof CancelledError)) throw error
       const index = messages.value.findIndex((message) => message.id === placeholderId)
       if (index !== -1) {
-        messages.value.splice(index, 1, { id: placeholderId, role: 'tool-call', calls })
+        const current = messages.value[index]
+        if (streamed && current.role === 'assistant') current.content = streamed
+        else messages.value.splice(index, 1)
       }
-      push('tool-result', { results })
-      generatingId.value = null
-      scrollToBottom()
+      if (streamed) modelMessages.value.push({ role: 'assistant', content: streamed })
+      return
     }
+    modelMessages.value.push({ role: 'assistant', content: response })
+    const current = messages.value.find((message) => message.id === placeholderId)
+    if (current && current.role === 'assistant') current.content = streamed
+    generatingId.value = null
   } catch (error) {
     push('error', {
       content: error instanceof Error ? error.message : String(error),
@@ -491,79 +439,76 @@ async function retryModel(): Promise<void> {
               ></span>
             </div>
           </div>
-          <div v-else-if="message.role === 'tool-call'" class="pixel-msg pixel-msg--tool">
-            calling {{ message.calls.join(', ') }}
-          </div>
-          <div v-else-if="message.role === 'tool-result'" class="pixel-msg pixel-msg--tool-result">
-            <div v-if="isContactResult(message.results)" class="pixel-chat-contact">
-              <div class="pixel-contact pixel-chat-contact__links">
-                <a
-                  :href="siteData.contact.linkedin"
-                  target="_blank"
-                  rel="noopener"
-                  class="pixel-contact__link pixel-contact__link--linkedin"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
+          <div v-else-if="message.role === 'action'" class="pixel-msg pixel-msg--action">
+            <template v-if="message.payload.kind === 'theme'">
+              <span class="pixel-chip" :class="`pixel-chip--${message.payload.theme}`">
+                theme → {{ message.payload.theme }}
+              </span>
+            </template>
+            <template v-else-if="message.payload.kind === 'contact'">
+              <div class="pixel-chat-contact">
+                <div class="pixel-contact pixel-chat-contact__links">
+                  <a
+                    :href="siteData.contact.linkedin"
+                    target="_blank"
+                    rel="noopener"
+                    class="pixel-contact__link pixel-contact__link--linkedin"
                   >
-                    <path
-                      d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75-.784 1.75-1.75 1.75zm13.5 11.268h-3v-5.604c0-1.337-.026-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.838-1.563 3.036 0 3.6 2.001 3.6 4.601v5.595z"
-                    />
-                  </svg>
-                  LinkedIn
-                </a>
-                <a
-                  :href="siteData.contact.github"
-                  target="_blank"
-                  rel="noopener"
-                  class="pixel-contact__link pixel-contact__link--github"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75-.784 1.75-1.75 1.75zm13.5 11.268h-3v-5.604c0-1.337-.026-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.838-1.563 3.036 0 3.6 2.001 3.6 4.601v5.595z"
+                      />
+                    </svg>
+                    LinkedIn
+                  </a>
+                  <a
+                    :href="siteData.contact.github"
+                    target="_blank"
+                    rel="noopener"
+                    class="pixel-contact__link pixel-contact__link--github"
                   >
-                    <path
-                      d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.416-4.042-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.236 1.84 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.305-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.527.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.649.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.624-5.475 5.921.43.371.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.218.694.825.576 4.765-1.585 8.199-6.082 8.199-11.385 0-6.627-5.373-12-12-12z"
-                    />
-                  </svg>
-                  GitHub
-                </a>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.416-4.042-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.236 1.84 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.305-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.527.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.649.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.624-5.475 5.921.43.371.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.218.694.825.576 4.765-1.585 8.199-6.082 8.199-11.385 0-6.627-5.373-12-12-12z"
+                      />
+                    </svg>
+                    GitHub
+                  </a>
+                </div>
               </div>
+            </template>
+            <template v-else-if="message.payload.kind === 'section'">
               <button
-                class="pixel-link-btn pixel-chat-contact__jump"
+                class="pixel-link-btn pixel-msg__jump"
                 type="button"
-                @click="jumpTo(message.results)"
+                @click="focusSection(message.payload.section)"
               >
-                View Contact section
+                View {{ SECTION_LABEL[message.payload.section] }} section
               </button>
-            </div>
+            </template>
             <template v-else>
-              <p v-if="toolNote(message.results)" class="pixel-msg__text">
-                {{ toolNote(message.results) }}
-              </p>
-              <p class="pixel-msg__dim">{{ summarizeResults(message.results) }}</p>
               <a
-                v-if="pageRoute(message.results)"
-                :href="pageHref(pageRoute(message.results) as PageRoute)"
+                :href="
+                  message.payload.page === 'projects'
+                    ? projectsHref()
+                    : blogHref(message.payload.slug)
+                "
                 class="pixel-link-btn pixel-msg__jump"
               >
-                {{ pageLabel(pageRoute(message.results) as PageRoute) }}
+                {{ message.payload.page === 'projects' ? 'View projects page' : 'View blog post' }}
               </a>
-              <button
-                v-else-if="resultSection(message.results)"
-                class="pixel-link-btn pixel-msg__jump"
-                type="button"
-                @click="jumpTo(message.results)"
-              >
-                View {{ SECTION_LABEL[resultSection(message.results) as SectionId] }} section
-              </button>
             </template>
           </div>
           <div v-else-if="message.role === 'retrieval'" class="pixel-msg pixel-msg--retrieval">
@@ -579,7 +524,7 @@ async function retryModel(): Promise<void> {
                 {{ message.selectedNames.length }}/{{ message.stats.total }}
               </span>
               <span class="pixel-msg--retrieval__names">
-                {{ message.selectedNames.join(', ') }}
+                {{ message.selectedNames.join(', ') || '(none)' }}
               </span>
               <span class="pixel-msg--retrieval__meta">
                 {{
@@ -611,7 +556,9 @@ async function retryModel(): Promise<void> {
                   >
                     <span class="tool-result__rank">{{ row.rank + 1 }}</span>
                     <span class="tool-result__name">{{ row.name }}</span>
-                    <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
+                    <span class="tool-result__desc">
+                      {{ sourceDef(row.name)?.description ?? '' }}
+                    </span>
                     <span class="tool-result__bar" aria-hidden="true">
                       <i
                         :style="{
@@ -620,13 +567,21 @@ async function retryModel(): Promise<void> {
                       ></i>
                     </span>
                     <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
-                    <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+                    <span
+                      v-if="row.name === 'set_theme' && themeActed(message)"
+                      class="tool-result__tag tool-result__tag--acted"
+                      >ACTED</span
+                    >
+                    <span
+                      v-else-if="row.selected && message.injectedNames?.includes(row.name)"
+                      class="tool-result__tag"
+                      >IN CONTEXT</span
+                    >
                   </li>
                 </ol>
                 <p class="tool-selector__stats">
-                  {{ message.stats.total }} tools · top {{ message.stats.selected }} selected · ~{{
-                    prunedPercent(message.stats)
-                  }}% of schemas pruned
+                  {{ message.stats.total }} candidates · top {{ message.stats.selected }} selected ·
+                  ~{{ prunedPercent(message.stats) }}% pruned
                 </p>
               </div>
             </transition>

@@ -119,6 +119,7 @@ function loadUseToolRetrieval() {
 /* ------------------------------------------------------------------ */
 
 function hitAtK(selectedNames, expected, k) {
+  if (expected.length === 0) return 1
   return selectedNames.slice(0, k).some((name) => expected.includes(name)) ? 1 : 0
 }
 

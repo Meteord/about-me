@@ -101,13 +101,16 @@ export function createStubbedRequire({ siteData }) {
     if (request === 'vue') {
       return { ref, watch: () => {}, computed: (fn) => fn(), nextTick: (fn) => fn?.() }
     }
-    if (request === '../data/siteData') return { siteData }
+    if (request === '../data/siteData') {
+      return { siteData, aboutMeMarkdown: siteDataModule.aboutMeMarkdown, aboutTopicDescription: siteDataModule.aboutTopicDescription }
+    }
     if (AUTO_STUB[request]) return AUTO_STUB[request]
     return frontendRequire(request)
   }
 }
 
 const siteDataPath = join(srcDir, 'data', 'siteData.ts')
+const siteDataModule = module(frontendRequire, transpile(siteDataPath))
 const registryPath = join(srcDir, 'tools', 'registry.ts')
 const detectDevicePath = join(srcDir, 'composables', 'detectDevice.ts')
 const retrievalSettingsPath = join(srcDir, 'composables', 'retrievalSettings.ts')
@@ -182,6 +185,21 @@ export function loadUseChatModel(dtype = 'q8', opts = {}) {
     'return { state, loadModel, generate, dispose, cancel: cancelGeneration, resetCancel, _getInstance: () => instance }',
   )
   return module(chatRequire, code).useChatModel()
+}
+
+/** Fetch the text of every content source (for judge grounding). */
+export async function loadAllSourceTexts(registry) {
+  const texts = {}
+  const defs = registry.SOURCE_DEFS ?? []
+  for (const def of defs) {
+    if (def.kind !== 'content') continue
+    try {
+      texts[def.name] = String(await registry.getSourceContent(def.name) ?? '')
+    } catch {
+      texts[def.name] = ''
+    }
+  }
+  return texts
 }
 
 /* ------------------------------------------------------------------ */
@@ -320,38 +338,94 @@ export function computeFaithfulness(answer, toolResults) {
 }
 
 export function deterministicAssess(case_, transcript) {
-  const { expected = [], expectedAnswerFacts = [], bannedFacts = [] } = case_
-  const { finalAnswer, toolResults = [], toolCalls = [] } = transcript
+  const {
+    expectAction = false,
+    expectedArgs = {},
+    expectedAnswerFacts = [],
+    bannedFacts = [],
+  } = case_
+  const {
+    finalAnswer,
+    injectedNames = [],
+    injectedText = '',
+    appliedTheme = null,
+    sourceTexts = {},
+  } = transcript
 
-  const called = new Set(toolCalls.map((call) => call?.name).filter(Boolean))
-  const supportingCalled = expected.some((tool) => called.has(tool))
+  const bannedViolation = bannedFacts.some((fact) => factMatches(fact, finalAnswer))
 
-  const factsMissedDueToToolMiss = []
+  // Action fixtures: the heuristic applied the right theme; faithfulness is
+  // vacuous because no content was injected (layout-only, contracts/eval-metrics.md).
+  if (expectAction) {
+    const expectedTheme = expectedArgs?.set_theme?.theme
+    const actionMatched =
+      appliedTheme !== null && (expectedTheme === undefined || appliedTheme === expectedTheme)
+    let matched = 0
+    for (const fact of expectedAnswerFacts) {
+      if (factMatches(fact, finalAnswer)) matched++
+    }
+    const factRecall = expectedAnswerFacts.length ? matched / expectedAnswerFacts.length : 1
+    const pass = actionMatched && factRecall === 1 && !bannedViolation
+    return {
+      factRecall,
+      factsMissedDueToRetrievalMiss: [],
+      bannedViolation,
+      faithfulness: 1,
+      unsupportedSentences: [],
+      pass,
+      appliedActionMatched: actionMatched,
+    }
+  }
+
+  // Content fixtures: a fact is scorable only when the source that holds it was
+  // actually injected — retrieval misses are reported, not blamed on the answer.
+  const available = (fact) => Object.values(sourceTexts).some((text) => factMatches(fact, text))
+  const factsMissedDueToRetrievalMiss = []
+  let scorable = 0
   let matched = 0
   for (const fact of expectedAnswerFacts) {
-    if (!supportingCalled) {
-      factsMissedDueToToolMiss.push(fact)
+    if (!available(fact)) continue
+    scorable++
+    if (!injectedNames.some((name) => factMatches(fact, sourceTexts[name] ?? ''))) {
+      factsMissedDueToRetrievalMiss.push(fact)
       continue
     }
     if (factMatches(fact, finalAnswer)) matched++
   }
-
-  const scorable = expectedAnswerFacts.length - factsMissedDueToToolMiss.length
   const factRecall = scorable > 0 ? matched / scorable : 1
-  const bannedViolation = bannedFacts.some((fact) => factMatches(fact, finalAnswer))
-  const { faithfulness, unsupportedSentences } = computeFaithfulness(finalAnswer, toolResults)
-  const pass = factRecall === 1 && !bannedViolation && faithfulness >= 0.8
 
-  return { factRecall, factsMissedDueToToolMiss, bannedViolation, faithfulness, unsupportedSentences, pass }
+  const hasInjected = Boolean(injectedText?.trim())
+  const { faithfulness, unsupportedSentences } = computeFaithfulness(
+    finalAnswer,
+    hasInjected ? [injectedText] : [],
+  )
+  // Nothing was injected and nothing was expected (e.g. greetings, smalltalk):
+  // the faithfulness gate is vacuous — the guard is that no action misfired.
+  const vacuous = scorable === 0 && !hasInjected
+  const unexpectedAction = appliedTheme !== null
+  const effectiveFaithfulness = vacuous ? 1 : faithfulness
+  const pass =
+    factRecall === 1 && !bannedViolation && effectiveFaithfulness >= 0.8 && !unexpectedAction
+
+  return {
+    factRecall,
+    factsMissedDueToRetrievalMiss,
+    bannedViolation,
+    faithfulness: effectiveFaithfulness,
+    unsupportedSentences: vacuous ? [] : unsupportedSentences,
+    pass,
+    appliedActionMatched: false,
+  }
 }
 
 const STUB_SCORE = {
   factRecall: 0.5,
-  factsMissedDueToToolMiss: [],
+  factsMissedDueToRetrievalMiss: [],
   bannedViolation: false,
   faithfulness: 0.5,
   unsupportedSentences: [],
   pass: true,
+  appliedActionMatched: false,
 }
 
 export function createJudge(name = 'deterministic') {

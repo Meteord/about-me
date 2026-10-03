@@ -1,408 +1,367 @@
-import { nextTick } from 'vue'
-import type { AboutTopic } from '../data/siteData'
-import { useSiteLayout, type ThemeName } from '../composables/useSiteLayout'
-import { findContentItem, getContentById, listContentItems } from '../composables/useLlmsContent'
+import { aboutMeMarkdown, type AboutTopic } from '../data/siteData'
+import type { SectionId, ThemeName } from '../composables/useSiteLayout'
+import { getContentById, listContentItems } from '../composables/useLlmsContent'
+
+export const THEME_ORDER: ThemeName[] = ['amber', 'orange', 'red']
 
 /* ------------------------------------------------------------------ */
-/* Tool schemas (OpenAI-style JSON, passed into the chat template)     */
+/* Retrieval candidates: granular content sources + one heuristic action */
 /* ------------------------------------------------------------------ */
 
-export interface ToolSchema {
-  type: 'function'
-  function: {
-    name: string
-    description: string
-    parameters: {
-      type: 'object'
-      properties: Record<string, { type: string; description: string; enum?: string[] }>
-    }
-  }
+export interface SourceDef {
+  name: string
+  kind: 'content' | 'action'
+  title: string
+  description: string
+  aliases: string[]
+  section?: SectionId
+  slug?: string | null
+  topic?: AboutTopic
+  spotlight?: string
 }
 
-const CONTENT_IDS = listContentItems().map((item) => item.id)
-
-export const TOOL_SCHEMAS: ToolSchema[] = [
+export const SOURCE_DEFS: SourceDef[] = [
   {
-    type: 'function',
-    function: {
-      name: 'list_contents',
-      description:
-        'List every piece of retrievable content on the site — the About, Projects, Contact and Blog sections plus each blog article — with a one-line description. Call this first to discover the available content ids before calling get_content. Does not change the page. Example: list_contents()',
-      parameters: {
-        type: 'object',
-        properties: {},
-      },
-    },
+    name: 'about_bio',
+    kind: 'content',
+    title: 'About — bio',
+    section: 'about',
+    topic: 'bio',
+    description: "Michael's bio: name, location (Munich), employer (KIES) and personal tags.",
+    aliases: [
+      'who is michael',
+      'tell me about yourself',
+      'bio',
+      'background',
+      'about michael',
+      'where does michael live',
+      'where does michael work',
+      'what does michael do',
+      'employer',
+      'kies',
+      'wo wohnt michael',
+      'wo arbeitet michael',
+    ],
   },
   {
-    type: 'function',
-    function: {
-      name: 'get_content',
-      description:
-        'Fetch the full content for a content id and bring it into view on the right: navigates to the blog post page for a blog article, the projects page for projects, or expands and spotlights the matching section on the home page. Use list_contents first to discover the available content ids. Example: get_content(id="about", topic="skills")',
-      parameters: {
-        type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Which content to retrieve. The available ids come from list_contents.',
-            enum: CONTENT_IDS,
-          },
-          topic: {
-            type: 'string',
-            description:
-              'Optional: narrow the About content to one topic and spotlight its card. Only used when id="about".',
-            enum: ['bio', 'education', 'skills', 'hobbies'],
-          },
-        },
-      },
-    },
+    name: 'about_education',
+    kind: 'content',
+    title: 'About — education',
+    section: 'about',
+    topic: 'education',
+    spotlight: 'about-education',
+    description:
+      "Michael's education: B.Sc. from Hochschule München and M.Sc. from TU München, periods and theses.",
+    aliases: [
+      'education',
+      'degree',
+      'degrees',
+      'university',
+      'studies',
+      'studied',
+      'bachelor',
+      'master',
+      'school',
+      'thesis',
+      'academic',
+      'hochschule',
+      'tu münchen',
+      'ausbildung',
+      'studium',
+    ],
   },
   {
-    type: 'function',
-    function: {
-      name: 'set_theme',
-      description:
-        'Switch the accent color theme of the whole page. Example: set_theme(theme="red")',
-      parameters: {
-        type: 'object',
-        properties: {
-          theme: {
-            type: 'string',
-            description: 'Accent color theme to apply.',
-            enum: ['amber', 'orange', 'red'],
-          },
-        },
-      },
-    },
+    name: 'about_skills',
+    kind: 'content',
+    title: 'About — skills',
+    section: 'about',
+    topic: 'skills',
+    spotlight: 'about-skills',
+    description:
+      "Michael's technical skills grouped by category (machine learning, frontend, backend, DevOps, languages).",
+    aliases: [
+      'skills',
+      'skill',
+      'tech stack',
+      'technology',
+      'technologies',
+      'programming languages',
+      'pytorch',
+      'typescript',
+      'python',
+      'java',
+      'react',
+      'vue',
+      'what he knows',
+      'competencies',
+      'fähigkeiten',
+    ],
+  },
+  {
+    name: 'about_hobbies',
+    kind: 'content',
+    title: 'About — hobbies',
+    section: 'about',
+    topic: 'hobbies',
+    spotlight: 'about-hobbies',
+    description: "Michael's hobbies: running, cycling and walking with his dog.",
+    aliases: [
+      'hobbies',
+      'hobby',
+      'free time',
+      'spare time',
+      'running',
+      'cycling',
+      'dog',
+      'fun',
+      'interests',
+      'for fun',
+      'freizeit',
+    ],
+  },
+  {
+    name: 'projects',
+    kind: 'content',
+    title: 'Projects',
+    section: 'projects',
+    description: "Michael's open-source projects, like MUCGPT, on their own page.",
+    aliases: [
+      'projects',
+      'project',
+      'mucgpt',
+      'what has he built',
+      'open source',
+      'open-source',
+      'portfolio',
+      'github projects',
+      'projekte',
+    ],
+  },
+  {
+    name: 'contact',
+    kind: 'content',
+    title: 'Contact',
+    section: 'contact',
+    description: 'How to reach Michael: LinkedIn and GitHub links.',
+    aliases: [
+      'contact',
+      'reach',
+      'email',
+      'linkedin',
+      'github',
+      'social',
+      'socials',
+      'how to contact',
+      'how to reach',
+      'kontakt',
+      'kontaktieren',
+      'wo finde ich seinen github',
+    ],
+  },
+  {
+    name: 'blog',
+    kind: 'content',
+    title: 'Blog',
+    section: 'blog',
+    description: "Michael's blog articles about this site and the models that power it.",
+    aliases: ['blog', 'blog articles', 'blog posts', 'posts', 'articles', 'artikel'],
+  },
+  {
+    name: 'blog:chat-with-my-website',
+    kind: 'content',
+    title: 'Blog — Chat with my website',
+    section: 'blog',
+    slug: 'chat-with-my-website',
+    description:
+      "The blog article 'Chat with my website' — how Mini-Michi, the on-device assistant, runs a real language model in the browser.",
+    aliases: [
+      'chat with my website',
+      'how does this page work',
+      'how the site works',
+      'what is this page',
+      'chat model',
+      'how fast is the chat model',
+      'on-device',
+      'transformers.js',
+      'webgpu',
+      'wasm',
+      'blog post',
+      'blog article',
+    ],
+  },
+  {
+    name: 'site_index',
+    kind: 'content',
+    title: 'Site index',
+    description:
+      'An index of every piece of content on the site (About, Projects, Contact, Blog and each article).',
+    aliases: [
+      'what can you do',
+      'what do you know',
+      'what is available',
+      'overview',
+      'give me an overview',
+      'site overview',
+      'list',
+      'list all',
+      'catalog',
+      'index',
+      'contents',
+      'all content',
+      'statistics',
+      'stats',
+      'numbers',
+      'show all',
+      'surprise me',
+      'something random',
+      'random fact',
+      'explore',
+    ],
+  },
+  {
+    name: 'set_theme',
+    kind: 'action',
+    title: 'Switch theme',
+    description:
+      'Switch the accent color theme of the whole page to amber, orange or red. Applied directly by the retriever — the chat model never calls it.',
+    aliases: [
+      'theme',
+      'color',
+      'colour',
+      'accent',
+      'dark mode',
+      'red theme',
+      'orange theme',
+      'amber theme',
+      'recolor',
+      'palette',
+      'next color',
+      'another color',
+      'switch color',
+      'switch the theme',
+      'change palette',
+      'change the look',
+      'change the theme',
+      'paint the page',
+      'make the page red',
+      'can you change the theme',
+    ],
   },
 ]
+
+export interface SourceDoc {
+  name: string
+  text: string
+}
+
+function sourceDocText(def: SourceDef): string {
+  return `${def.name} — ${def.title}: ${def.description}. ${def.aliases.join(', ')}`
+}
+
+export function getSourceDocs(): SourceDoc[] {
+  return SOURCE_DEFS.map((def) => ({ name: def.name, text: sourceDocText(def) }))
+}
+
+export function filterSources(names: string[]): SourceDef[] {
+  return SOURCE_DEFS.filter((def) => names.includes(def.name))
+}
+
+export function sourceChars(defs: SourceDef[]): number {
+  return defs.reduce((total, def) => total + sourceDocText(def).length, 0)
+}
+
+/* ------------------------------------------------------------------ */
+/* Content injection                                                   */
+/* ------------------------------------------------------------------ */
+
+export const MAX_INJECT_CHARS = 1800
+
+function buildSiteIndex(): string {
+  return listContentItems()
+    .map((item) => `- ${item.id}: ${item.title} — ${item.description}`)
+    .join('\n')
+}
+
+export async function getSourceContent(name: string): Promise<string> {
+  const def = SOURCE_DEFS.find((entry) => entry.name === name)
+  if (!def || def.kind !== 'content') throw new Error(`Unknown content source: ${name}`)
+  if (name === 'site_index') return buildSiteIndex()
+  if (def.topic) return aboutMeMarkdown(def.topic)
+  if (def.slug) return getContentById(`blog:${def.slug}`)
+  return getContentById(name)
+}
+
+/** Fetch the selected content sources and format them into one context block,
+    trimming to a token budget so the 350M context stays healthy. */
+export async function buildContextText(
+  names: string[],
+): Promise<{ names: string[]; text: string }> {
+  const defs = filterSources(names).filter((def) => def.kind === 'content')
+  const chunks: string[] = []
+  const used: string[] = []
+  let budget = MAX_INJECT_CHARS
+  for (const def of defs) {
+    const content = (await getSourceContent(def.name)).trim()
+    const block = `[${def.name}]\n${content}`
+    if (block.length <= budget) {
+      chunks.push(block)
+      budget -= block.length
+      used.push(def.name)
+    } else if (budget > 0) {
+      chunks.push(block.slice(0, budget))
+      budget = 0
+      used.push(def.name)
+    }
+  }
+  return { names: used, text: chunks.join('\n\n') }
+}
 
 /* ------------------------------------------------------------------ */
 /* System prompt                                                       */
 /* ------------------------------------------------------------------ */
 
-export const ALL_TOOL_NAMES: string[] = TOOL_SCHEMAS.map((tool) => tool.function.name)
-
-const TOOL_GUIDE: Record<string, string> = {
-  list_contents:
-    'list_contents() — list every retrievable content item with a one-line description. Call this first when you are not sure what content exists.',
-  get_content:
-    'get_content(id="about"|"projects"|"contact"|"blog"|"blog:<slug>"[, topic="skills"]) — fetch the full content for a content id AND bring it into view on the right (opens the blog post or projects page, or expands + spotlights the matching section). Use topic only when id="about".',
-  set_theme: 'set_theme(theme="amber"|"orange"|"red") — switch the accent color theme.',
-}
-
-export function buildSystemPrompt(selectedNames: string[] = ALL_TOOL_NAMES): string {
-  const tools = selectedNames.map((name) => `  - ${TOOL_GUIDE[name] ?? name}`).join('\n')
-  return `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. You can call tools to retrieve real information about Michael or to change the page.
-
-How to answer questions about Michael:
-1. If you know what to fetch, call get_content(id=...) directly, e.g. get_content(id="about", topic="skills"). The tool returns the real content AND brings the matching section or page into view on the right.
-2. If you don't know which content exists, call list_contents() first to see the available content ids and their short descriptions, then call get_content(id=...) on the next turn with the right id.
-3. Answer the visitor from the returned content. Never invent facts about Michael.
+export function buildSystemPrompt(contextText = ''): string {
+  const context = contextText ? `\n--- retrieved content ---\n${contextText}` : ''
+  return `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. Answer the visitor's question from the retrieved content below.
 
 Rules:
-- When you need to act, output one or more tool calls wrapped exactly in the markers, one call per block:
-  <|tool_call_start|>get_content(id="about", topic="skills")<|tool_call_end|>
-  <|tool_call_start|>set_theme(theme="red")<|tool_call_end|>
-- Use Python-style keyword arguments. Strings are quoted with double quotes.
-- You may call SEVERAL independent tools in one turn (each call in its own block). Do NOT bundle calls where one depends on another's result — wait for the previous result and call the next tool in the following turn.
-- After the tools return, answer the visitor naturally.
-- Keep answers short, friendly and concise. You can use the visitor's language.
-- Tools you can call:
-${tools}`
+- Base your answer ONLY on the retrieved content. Never invent facts about Michael.
+- If the retrieved content does not answer the question, say so briefly instead of guessing.
+- Keep answers short, friendly and concise. Use the visitor's language.
+- You cannot change the page, open links or look anything up — the content you were given is all you have.${context}`
 }
 
 /* ------------------------------------------------------------------ */
-/* Tool-call parsing (ported from Liquid AI's LFM2-WebGPU demo)        */
+/* Heuristic action decision (no LLM call syntax)                      */
 /* ------------------------------------------------------------------ */
 
-export interface ParsedCall {
+export interface ToolScoreLike {
   name: string
-  positionalArgs: unknown[]
-  keywordArgs: Record<string, unknown>
+  score: number
+  rank: number
 }
 
-function parseArguments(argsString: string): string[] {
-  const args: string[] = []
-  let current = ''
-  let inQuotes = false
-  let quoteChar = ''
-  let depth = 0
+const ACTION_MIN_SCORE = 0.6
 
-  for (const char of argsString) {
-    if (!inQuotes && (char === '"' || char === "'")) {
-      inQuotes = true
-      quoteChar = char
-      current += char
-    } else if (inQuotes && char === quoteChar) {
-      inQuotes = false
-      quoteChar = ''
-      current += char
-    } else if (!inQuotes && char === '(') {
-      depth++
-      current += char
-    } else if (!inQuotes && char === ')') {
-      depth--
-      current += char
-    } else if (!inQuotes && char === ',' && depth === 0) {
-      args.push(current.trim())
-      current = ''
-    } else {
-      current += char
-    }
+function resolveTheme(query: string): ThemeName | null {
+  const lower = query.toLowerCase()
+  for (const theme of THEME_ORDER) {
+    if (new RegExp(`\\b${theme}\\b`).test(lower)) return theme
   }
-
-  if (current.trim()) {
-    args.push(current.trim())
-  }
-
-  return args
+  return null
 }
 
-/** Extract every tool-call block in a response, so the model can emit several
-    independent calls in a single turn. Each block may itself hold a list. */
-export function extractToolCalls(content: string): string[] {
-  const calls: string[] = []
-  for (const match of content.matchAll(/<\|tool_call_start\|>(.*?)<\|tool_call_end\|>/gs)) {
-    calls.push(...extractPythonicCalls(match[1].trim()))
-  }
-  return calls
-}
-
-export function extractPythonicCalls(toolCallContent: string): string[] {
-  const clean = toolCallContent.trim()
-  try {
-    const parsed: unknown = JSON.parse(clean)
-    if (Array.isArray(parsed)) return parsed as string[]
-  } catch {
-    // not JSON — fall through to manual parsing
-  }
-  if (clean.startsWith('[') && clean.endsWith(']')) {
-    const inner = clean.slice(1, -1).trim()
-    if (!inner) return []
-    return parseArguments(inner).map((call) => call.trim().replace(/^['"]|['"]$/g, ''))
-  }
-  return [clean]
-}
-
-export function parsePythonicCalls(command: string): ParsedCall | null {
-  const match = command.match(/^([a-zA-Z0-9_]+)\((.*)\)$/s)
-  if (!match) return null
-
-  const [, name, argsStr] = match
-  const args = parseArguments(argsStr)
-  const positionalArgs: unknown[] = []
-  const keywordArgs: Record<string, unknown> = {}
-
-  for (const arg of args) {
-    const kwargMatch = arg.match(/^([a-zA-Z0-9_]+)\s*=\s*(.*)$/s)
-    if (kwargMatch) {
-      const [, key, value] = kwargMatch
-      try {
-        keywordArgs[key] = JSON.parse(value)
-      } catch {
-        keywordArgs[key] = value
-      }
-    } else {
-      try {
-        positionalArgs.push(JSON.parse(arg))
-      } catch {
-        positionalArgs.push(arg)
-      }
-    }
-  }
-
-  return { name, positionalArgs, keywordArgs }
-}
-
-function mapArgsToNamedParams(
-  paramNames: string[],
-  positionalArgs: unknown[],
-  keywordArgs: Record<string, unknown>,
-): Record<string, unknown> {
-  const namedParams: Record<string, unknown> = Object.create(null)
-  positionalArgs.forEach((arg, index) => {
-    if (index < paramNames.length) {
-      namedParams[paramNames[index]] = arg
-    }
-  })
-  Object.assign(namedParams, keywordArgs)
-  return namedParams
-}
-
-function toolParamNames(schema: ToolSchema): string[] {
-  return Object.keys(schema.function.parameters.properties)
-}
-
-/* ------------------------------------------------------------------ */
-/* Tool executors                                                      */
-/* ------------------------------------------------------------------ */
-
-export interface ToolResult {
-  call: string
-  result?: unknown
-  error?: string
-  kind: ToolResultKind
-}
-
-export type ToolResultKind = 'text' | 'contact' | 'layout' | 'page'
-
-export async function executeToolCall(call: string): Promise<ToolResult> {
-  const parsed = parsePythonicCalls(call)
-  if (!parsed) {
-    return { call, error: `Invalid tool call format: ${call}`, kind: 'text' }
-  }
-
-  const schema = TOOL_SCHEMAS.find((tool) => tool.function.name === parsed.name)
-  if (!schema) {
-    return { call, error: `Unknown tool: ${parsed.name}`, kind: 'text' }
-  }
-
-  const args = mapArgsToNamedParams(
-    toolParamNames(schema),
-    parsed.positionalArgs,
-    parsed.keywordArgs,
-  )
-
-  try {
-    const result = await executors[parsed.name](args)
-    return { call, result, kind: (result as { kind?: ToolResultKind })?.kind ?? 'text' }
-  } catch (error) {
-    return { call, error: error instanceof Error ? error.message : String(error), kind: 'text' }
-  }
-}
-
-/* Which content card inside the About window should be spotlit per topic. */
-const TOPIC_SPOTLIGHT: Record<string, string> = {
-  education: 'about-education',
-  skills: 'about-skills',
-  hobbies: 'about-hobbies',
-}
-
-/** Yield to the event loop so a hashchange → route → re-render settles first. */
-function waitForRoute(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
-}
-
-const executors: Record<string, (args: Record<string, unknown>) => unknown | Promise<unknown>> = {
-  list_contents: () => {
-    const items = listContentItems()
-    return {
-      kind: 'text',
-      text: items.map((item) => `- ${item.id}: ${item.title} — ${item.description}`).join('\n'),
-    }
-  },
-
-  get_content: async (args) => {
-    const id = (args.id as string) ?? 'about'
-    const item = findContentItem(id)
-    if (!item) {
-      return {
-        kind: 'text',
-        error: `Unknown content id "${id}". Call list_contents first to see the available ids.`,
-      }
-    }
-
-    if (item.kind === 'page') {
-      const href =
-        item.section === 'projects' ? '#/projects' : item.slug ? `#/blog/${item.slug}` : '#'
-      window.location.hash = href
-      const content = await getContentById(id)
-      return {
-        kind: 'page',
-        section: item.section,
-        route:
-          item.section === 'projects'
-            ? { name: 'projects', slug: null }
-            : { name: 'blog', slug: item.slug ?? null },
-        text: content,
-      }
-    }
-
-    // Section content: return to home and bring the section into view.
-    const hashChanged = window.location.hash !== ''
-    if (hashChanged) window.location.hash = ''
-    const topic = (args.topic as AboutTopic | undefined) ?? undefined
-    const target = topic ? TOPIC_SPOTLIGHT[topic] : undefined
-
-    const { state, setVisible, setExpanded, focusSection } = useSiteLayout()
-    state.sections.forEach((entry) => {
-      entry.visible = entry.id === item.section
-      entry.expanded = entry.id === item.section
-    })
-    if (!state.sections.some((entry) => entry.id === item.section)) {
-      setVisible(item.section, true)
-      setExpanded(item.section, true)
-    }
-    if (hashChanged) await waitForRoute()
-    await nextTick()
-    focusSection(item.section, { collapseOthers: false, target })
-
-    const content = await getContentById(id)
-    return {
-      kind: item.section === 'contact' ? 'contact' : 'text',
-      section: item.section,
-      topic,
-      spotlight: true,
-      target,
-      text: content,
-    }
-  },
-
-  set_theme: (args) => {
-    const { setTheme } = useSiteLayout()
-    const theme = args.theme as ThemeName
-    if (!theme) return { kind: 'text', error: 'set_theme requires "theme" (amber, orange or red).' }
-    setTheme(theme)
-    return { kind: 'layout', theme }
-  },
-}
-
-/* ------------------------------------------------------------------ */
-/* Retrieval index (tool documents for the tool selector)              */
-/* ------------------------------------------------------------------ */
-
-export interface ToolDoc {
-  name: string
-  text: string
-}
-
-/* Colloquial synonyms and example phrasings visitors use, per tool. They are
-   appended to the doc text so both BM25 and the vector-search retriever can match
-   queries that never literally say the tool name. */
-const TOOL_ALIASES: Record<string, string> = {
-  list_contents:
-    'what can you do, what do you know, what is available, available content, list, list all, catalog, index, overview, give me an overview, site overview, what is on this page, contents, all content, everything on the site, statistics, numbers, blog articles, list of articles, show all, surprise me, explore',
-  get_content:
-    'who is michael, tell me about yourself, bio, background, career, education, degree, study, university, school, thesis, skills, tech stack, programming languages, hobbies, free time, running, cycling, dog, projects, mucgpt, chatbot munich, how to reach, email, linkedin, github, contact, blog, blog post, article, how does this page work, how the site works, what is this page, chat model, how fast is the chat model, on-device, webgpu, wasm',
-  set_theme:
-    'dark mode, color, colour, accent, red theme, orange theme, amber theme, recolor, palette, next color, switch color, change palette, another theme, change the look, recolor the page',
-}
-
-function toolDocText(schema: ToolSchema): string {
-  const { name, description, parameters } = schema.function
-  const params = Object.entries(parameters.properties)
-    .map(([key, value]) => `${key} ${value.description ?? ''}`)
-    .join(' ')
-  const enums = Object.values(parameters.properties)
-    .flatMap((value) => value.enum ?? [])
-    .join(' ')
-  const aliases = TOOL_ALIASES[name] ?? ''
-  return `${name}. ${description} ${params} ${enums} ${aliases}`
-}
-
-export function getToolDocs(): ToolDoc[] {
-  return TOOL_SCHEMAS.map((schema) => ({
-    name: schema.function.name,
-    text: toolDocText(schema),
-  }))
-}
-
-export function pruneSchemas(names: string[]): ToolSchema[] {
-  return TOOL_SCHEMAS.filter((tool) => names.includes(tool.function.name))
-}
-
-export function schemaChars(schemas: ToolSchema[]): number {
-  return schemas.reduce((total, schema) => total + JSON.stringify(schema).length, 0)
+/** Decide the theme to apply, or null if the query is not a theme request.
+    Deterministic: the set_theme candidate must rank first with a strong score;
+    an explicit color in the query wins, otherwise the theme cycles forward. */
+export function decideAction(
+  query: string,
+  rows: ToolScoreLike[],
+  currentTheme: ThemeName,
+): ThemeName | null {
+  const themeRow = rows.find((row) => row.name === 'set_theme')
+  if (!themeRow || themeRow.rank !== 0 || themeRow.score < ACTION_MIN_SCORE) return null
+  const explicit = resolveTheme(query)
+  if (explicit) return explicit
+  return THEME_ORDER[(THEME_ORDER.indexOf(currentTheme) + 1) % THEME_ORDER.length]
 }

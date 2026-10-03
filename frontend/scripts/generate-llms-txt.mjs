@@ -90,7 +90,7 @@ const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.
 - [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies.
-- [Blog](llms/blog.md): Articles, including "Chat with my website" — the on-device models powering this page (chat model + tool retriever).
+- [Blog](llms/blog.md): Articles, including "Chat with my website" — the on-device models powering this page (chat model + content retriever).
 - [Projects](llms/projects.md): MUCGPT, Munich's open-source AI chatbot for citizens.
 - [Contact](llms/contact.md): LinkedIn and GitHub profiles.
 - [GitHub](https://github.com/Meteord): Michael Jaumann's GitHub profile.

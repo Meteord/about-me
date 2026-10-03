@@ -2733,6 +2733,11 @@ html[data-zoom='comfortable'] {
   padding: 0.05rem 0.3rem;
 }
 
+.tool-result__tag--acted {
+  color: var(--pixel-orange);
+  border-color: rgba(251, 146, 60, 0.55);
+}
+
 .tool-selector__stats {
   font-size: 0.6875rem;
   line-height: 1.5;
