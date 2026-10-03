@@ -6,7 +6,7 @@ import { useBlogAnimation } from '../composables/useBlogAnimation'
 
 const articleRef = ref<HTMLElement | null>(null)
 useBlogAnimation(articleRef)
-const chipVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red']
+const chipVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pink']
 const stepVariants = [
   'model-card__step--amber',
   'model-card__step--orange',
@@ -63,7 +63,7 @@ onMounted(async () => {
     <div class="pixel-window__content pixel-window__content--open blog-post__body">
       <div class="blog-post__head">
         <img
-          src="/mm.png"
+          src="/mm.webp"
           alt=""
           aria-hidden="true"
           width="56"

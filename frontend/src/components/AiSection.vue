@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
-import { useChatModel, CancelledError } from '../composables/useChatModel'
+import { nextTick, ref, watch } from 'vue'
+import { useChatModel, CancelledError, humanizeModelError } from '../composables/useChatModel'
 import { useSiteLayout, type SectionId } from '../composables/useSiteLayout'
 import { blogHref, projectsHref } from '../composables/useHashRoute'
 import {
   useToolRetrieval,
+  type RetrievalMode,
   type RetrievalStats,
   type ToolScore,
 } from '../composables/useToolRetrieval'
@@ -64,6 +65,12 @@ const inputEl = ref<HTMLInputElement | null>(null)
 let nextId = 1
 
 const MAX_ROUNDS = 3
+
+const MODE_GLOSS: Record<RetrievalMode, string> = {
+  lexical: 'keyword match',
+  vector: 'meaning match',
+  hybrid: 'keyword + meaning',
+}
 
 const EXAMPLES = [
   'What can you do?',
@@ -273,12 +280,6 @@ watch(
   () => scrollToBottom(),
 )
 
-onMounted(() => {
-  if (state.value.status === 'idle') {
-    void loadModel().catch(() => {})
-  }
-})
-
 async function handleSend(raw?: string): Promise<void> {
   const text = (raw ?? input.value).trim()
   if (!text || isGenerating.value) return
@@ -423,7 +424,7 @@ async function retryModel(): Promise<void> {
 </script>
 
 <template>
-  <div class="ai-panel">
+  <div class="ai-panel" :class="{ 'ai-panel--idle': messages.length === 0 }">
     <div class="ai-panel__bar">
       <span class="ai-panel__title">Mini-Michi</span>
       <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -432,7 +433,13 @@ async function retryModel(): Promise<void> {
       <ToolSelectorPanel :on-clear="clearChat" />
 
       <div class="pixel-chat__hero">
-        <img src="/mm.png" alt="Mini-Michi" class="pixel-avatar pixel-chat__hero-avatar" />
+        <img
+          src="/mm.webp"
+          alt="Mini-Michi"
+          width="44"
+          height="44"
+          class="pixel-avatar pixel-chat__hero-avatar"
+        />
         <div class="pixel-chat__hero-copy">
           <h2 class="pixel-chat__hero-title">Chat with Mini-Michi</h2>
           <p class="pixel-chat__hero-sub">…about Michael</p>
@@ -453,7 +460,14 @@ async function retryModel(): Promise<void> {
             <p>{{ message.content }}</p>
           </div>
           <div v-else-if="message.role === 'assistant'" class="pixel-msg pixel-msg--ai">
-            <img src="/mm.png" alt="" aria-hidden="true" class="pixel-chat__bubble-avatar" />
+            <img
+              src="/mm.webp"
+              alt=""
+              aria-hidden="true"
+              width="28"
+              height="28"
+              class="pixel-chat__bubble-avatar"
+            />
             <div class="pixel-msg__body">
               <div
                 class="pixel-msg__text pixel-msg__markdown"
@@ -562,6 +576,9 @@ async function retryModel(): Promise<void> {
                     ? message.stats.mode
                     : message.stats.effective + ' (fallback)'
                 }}
+                <span class="pixel-msg--retrieval__gloss">
+                  · {{ MODE_GLOSS[message.stats.effective] }}
+                </span>
                 · {{ message.stats.latencyMs }}ms
               </span>
               <span class="pixel-msg--retrieval__toggle" aria-hidden="true">
@@ -586,7 +603,11 @@ async function retryModel(): Promise<void> {
                     <span class="tool-result__name">{{ row.name }}</span>
                     <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
                     <span class="tool-result__bar" aria-hidden="true">
-                      <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
+                      <i
+                        :style="{
+                          clipPath: 'inset(0 ' + (100 - Math.round(row.score * 100)) + '% 0 0)',
+                        }"
+                      ></i>
                     </span>
                     <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
                     <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
@@ -619,7 +640,10 @@ async function retryModel(): Promise<void> {
             aria-valuemax="100"
             :aria-valuenow="state.progress"
           >
-            <span class="ai-progress__bar" :style="{ width: state.progress + '%' }"></span>
+            <span
+              class="ai-progress__bar"
+              :style="{ clipPath: 'inset(0 ' + (100 - state.progress) + '% 0 0)' }"
+            ></span>
           </div>
           <p class="pixel-msg__dim">
             {{ state.progress }}% · {{ state.file || 'fetching model…' }}
@@ -629,7 +653,7 @@ async function retryModel(): Promise<void> {
           v-else-if="messages.length === 0 && state.status === 'error'"
           class="pixel-msg pixel-msg--error"
         >
-          <p>Model failed to load: {{ state.error }}</p>
+          <p>Model failed to load: {{ humanizeModelError(state.error ?? '') }}</p>
           <button class="pixel-link-btn pixel-msg__jump" type="button" @click="retryModel">
             Retry model
           </button>
@@ -645,8 +669,16 @@ async function retryModel(): Promise<void> {
                   ? 'WebAssembly'
                   : 'WebGPU or WebAssembly'
             }}. Ask me anything about Michael — I'll look it up and bring the right section into
-            view. I can also recolor the page or show you the statistics dashboard.
+            view. I can also recolor the page or list everything on the site.
           </p>
+          <button
+            v-if="state.status === 'idle'"
+            class="pixel-link-btn pixel-chat__load"
+            type="button"
+            @click="loadModel"
+          >
+            Load Mini-Michi
+          </button>
           <div class="pixel-tags pixel-chat__examples">
             <button
               v-for="example in suggestions"
@@ -690,8 +722,14 @@ async function retryModel(): Promise<void> {
           class="pixel-chat__field"
           type="text"
           autocomplete="off"
-          :disabled="isGenerating || state.status !== 'ready'"
-          :placeholder="state.status === 'ready' ? 'Talk to Mini-Michi…' : 'Load the model first…'"
+          :disabled="isGenerating || (state.status !== 'ready' && state.status !== 'idle')"
+          :placeholder="
+            state.status === 'ready'
+              ? 'Talk to Mini-Michi…'
+              : state.status === 'idle'
+                ? 'Type a question to load Mini-Michi…'
+                : 'Loading Mini-Michi…'
+          "
           aria-label="Chat message"
         />
         <button
@@ -706,7 +744,7 @@ async function retryModel(): Promise<void> {
           v-else
           class="pixel-chat__send"
           type="submit"
-          :disabled="state.status !== 'ready' || !input.trim()"
+          :disabled="(state.status !== 'ready' && state.status !== 'idle') || !input.trim()"
         >
           Send
         </button>

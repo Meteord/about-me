@@ -145,7 +145,7 @@ export function useSiteLayout() {
   }
 
   const focusSection = (id: SectionId, options: FocusOptions = {}): void => {
-    const { collapseOthers = true, target } = options
+    const { collapseOthers = false, target } = options
     if (collapseOthers) {
       state.sections.forEach((section) => {
         section.expanded = section.id === id

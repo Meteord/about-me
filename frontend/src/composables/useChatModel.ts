@@ -26,6 +26,25 @@ function resetCancel(): void {
 export type ModelDevice = 'webgpu' | 'wasm'
 export type ModelStatus = 'idle' | 'checking' | 'loading' | 'ready' | 'error'
 
+export const MODEL_STATUS_LABEL: Record<ModelStatus, string> = {
+  idle: 'OFF',
+  checking: 'PREPARING',
+  loading: 'DOWNLOADING',
+  ready: 'READY',
+  error: 'FAILED',
+}
+
+export function humanizeModelError(message: string): string {
+  const lower = message.toLowerCase()
+  if (lower.includes('fetch') || lower.includes('network') || lower.includes('abort')) {
+    return 'The model download failed — check your connection and try again.'
+  }
+  if (lower.includes('webgpu') || lower.includes('gpu') || lower.includes('device')) {
+    return 'The browser could not start the model engine — retry, or use a WebGPU-capable browser.'
+  }
+  return 'Mini-Michi could not start — please try again.'
+}
+
 export interface ChatModelState {
   status: ModelStatus
   device: ModelDevice | null

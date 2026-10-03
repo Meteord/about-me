@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useChatModel } from '../composables/useChatModel'
+import { MODEL_STATUS_LABEL, humanizeModelError, useChatModel } from '../composables/useChatModel'
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
 import { toolSelectorOpen, sampling } from '../composables/retrievalSettings'
 import { TOOL_SCHEMAS } from '../tools/registry'
@@ -114,7 +114,7 @@ const prunedPercent = computed(() => {
         class="ai-status__badge tool-selector__bar-status"
         :class="`ai-status__badge--${chatState.status}`"
       >
-        {{ chatState.status }}
+        {{ MODEL_STATUS_LABEL[chatState.status] }}
       </span>
       <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="pixel-window__toggle">{{ expanded ? '−' : '+' }}</span>
@@ -126,10 +126,10 @@ const prunedPercent = computed(() => {
           <p class="model-settings__heading">Chat model</p>
           <div class="ai-status" aria-live="polite">
             <span class="ai-status__badge" :class="`ai-status__badge--${chatState.status}`">
-              {{ chatState.status }}
+              {{ MODEL_STATUS_LABEL[chatState.status] }}
             </span>
             <span v-if="chatState.device" class="ai-status__device">
-              {{ chatState.device === 'webgpu' ? 'WEBGPU' : 'WASM' }} · {{ chatState.dtype }}
+              {{ chatState.device === 'webgpu' ? 'WEBGPU' : 'WASM' }}
             </span>
             <span v-if="chatState.status === 'loading'" class="ai-status__file">
               {{ chatState.file }}
@@ -159,9 +159,14 @@ const prunedPercent = computed(() => {
             aria-valuemax="100"
             :aria-valuenow="chatState.progress"
           >
-            <span class="ai-progress__bar" :style="{ width: chatState.progress + '%' }"></span>
+            <span
+              class="ai-progress__bar"
+              :style="{ clipPath: 'inset(0 ' + (100 - chatState.progress) + '% 0 0)' }"
+            ></span>
           </div>
-          <p v-if="chatState.status === 'error'" class="ai-error">{{ chatState.error }}</p>
+          <p v-if="chatState.status === 'error'" class="ai-error">
+            {{ humanizeModelError(chatState.error ?? '') }}
+          </p>
           <p class="tool-selector__intro">
             Greedy decoding with a repetition penalty keeps answers steady; enable sampling for more
             varied replies.
@@ -182,9 +187,13 @@ const prunedPercent = computed(() => {
         <div class="model-settings__section">
           <p class="model-settings__heading">Tool retriever</p>
           <p class="tool-selector__intro">
-            Scores your request against every tool with an on-device zero-shot prompt-router
-            checkpoint (LFM2.5-Encoder-350M), fused with BM25 over the enriched tool index via
-            reciprocal rank fusion — so Mini-Michi only sees the schemas it actually needs.
+            Before every reply, Mini-Michi matches your question against every tool and sends only
+            the few most relevant descriptions to the chat model — it never has to look at all
+            {{ TOTAL }} at once.
+          </p>
+          <p class="tool-selector__intro tool-selector__intro--tech">
+            Under the hood: an on-device zero-shot prompt-router checkpoint (LFM2.5-Encoder-350M)
+            fused with BM25 over the enriched tool index via reciprocal rank fusion.
           </p>
 
           <div class="tool-selector__controls">
@@ -220,6 +229,9 @@ const prunedPercent = computed(() => {
                   {{ MODE_LABEL[m] }}
                 </button>
               </div>
+              <span class="tool-selector__mode-gloss" aria-hidden="true">
+                keyword · meaning · both
+              </span>
 
               <div class="tool-selector__topk">
                 <button
@@ -253,7 +265,10 @@ const prunedPercent = computed(() => {
               aria-valuemax="100"
               :aria-valuenow="vector.progress"
             >
-              <span class="ai-progress__bar" :style="{ width: vector.progress + '%' }"></span>
+              <span
+                class="ai-progress__bar"
+                :style="{ clipPath: 'inset(0 ' + (100 - vector.progress) + '% 0 0)' }"
+              ></span>
             </div>
             <span v-if="vector.file" class="ai-status__file">{{ vector.file }}</span>
           </div>
@@ -263,7 +278,7 @@ const prunedPercent = computed(() => {
             <button type="button" class="tool-selector__retry" @click="loadVector">Retry</button>
           </p>
 
-          <div v-if="lastResult" class="tool-selector__results">
+          <div v-if="lastResult" class="tool-selector__results" aria-live="polite">
             <ol class="tool-selector__list">
               <li
                 v-for="row in lastResult.rows"
@@ -275,7 +290,11 @@ const prunedPercent = computed(() => {
                 <span class="tool-result__name">{{ row.name }}</span>
                 <span class="tool-result__desc">{{ toolDescription(row.name) }}</span>
                 <span class="tool-result__bar" aria-hidden="true">
-                  <i :style="{ width: Math.round(row.score * 100) + '%' }"></i>
+                  <i
+                    :style="{
+                      clipPath: 'inset(0 ' + (100 - Math.round(row.score * 100)) + '% 0 0)',
+                    }"
+                  ></i>
                 </span>
                 <span class="tool-result__score">{{ row.score.toFixed(2) }}</span>
                 <span v-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
@@ -290,6 +309,9 @@ const prunedPercent = computed(() => {
                   : lastResult.stats.effective + ' (fallback)'
               }}
               · ~{{ prunedPercent }}% of schemas pruned · {{ lastResult.stats.latencyMs }}ms
+            </p>
+            <p class="tool-selector__stats tool-selector__stats--gloss">
+              → only those tool descriptions are passed to the chat model.
             </p>
           </div>
 

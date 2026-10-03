@@ -4,7 +4,7 @@ import { siteData } from '../data/siteData'
 
 const { state, isExpanded, toggle } = useSiteLayout()
 
-const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red']
+const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pink']
 </script>
 <template>
   <section
@@ -29,7 +29,7 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--red
         id="about-content"
         class="pixel-window__content about-content"
       >
-        <img src="/mj.jpg" alt="Michael Jaumann" class="pixel-avatar" />
+        <img src="/mj.webp" alt="Michael Jaumann" width="104" height="104" class="pixel-avatar" />
         <h1 class="pixel-name">{{ siteData.name }}</h1>
         <p class="pixel-lede">
           {{ siteData.lede }}
