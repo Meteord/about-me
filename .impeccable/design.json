@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-03T00:00:00.000Z",
+  "title": "Design System: Michael Jaumann — About Me",
+  "extensions": {
+    "colorMeta": {
+      "soot-brown": {
+        "role": "neutral",
+        "displayName": "Soot Brown",
+        "canonical": "#171310",
+        "tonalRamp": ["#2d251f", "#4f4237", "#725e4f", "#947a67", "#ad9889", "#c5b6ab", "#ddd4ce", "#f5f2f0"]
+      },
+      "cabinet-panel": {
+        "role": "neutral",
+        "displayName": "Cabinet Panel",
+        "canonical": "#201a13",
+        "tonalRamp": ["#30271c", "#554532", "#796248", "#9e805e", "#b49d81", "#cab9a6", "#e0d6ca", "#f6f3ef"]
+      },
+      "cabinet-panel-raised": {
+        "role": "neutral",
+        "displayName": "Cabinet Panel Raised",
+        "canonical": "#2a2118",
+        "tonalRamp": ["#31261c", "#564331", "#7b6146", "#a07e5b", "#b69b80", "#cbb8a5", "#e1d5ca", "#f6f2ef"]
+      },
+      "warm-bone": {
+        "role": "neutral",
+        "displayName": "Warm Bone",
+        "canonical": "#f6efe4",
+        "tonalRamp": ["#392a13", "#654b22", "#916b30", "#bd8c3f", "#cda669", "#dbc094", "#eadac0", "#f9f4ec"]
+      },
+      "warm-bone-dim": {
+        "role": "neutral",
+        "displayName": "Warm Bone Dim",
+        "canonical": "#d8cdbb",
+        "tonalRamp": ["#31291c", "#564831", "#7b6746", "#a0865c", "#b6a180", "#cbbda5", "#e0d8ca", "#f6f3ef"]
+      },
+      "hardware-border": {
+        "role": "neutral",
+        "displayName": "Hardware Border",
+        "canonical": "#4a3f32",
+        "tonalRamp": ["#2e271f", "#504436", "#73624e", "#968065", "#ae9c87", "#c6b9aa", "#ddd6cd", "#f5f2f0"]
+      },
+      "phosphor-amber": {
+        "role": "primary",
+        "displayName": "Phosphor Amber",
+        "canonical": "#fbbf24",
+        "tonalRamp": ["#4b3701", "#846002", "#be8a03", "#f7b305", "#fbc53a", "#fcd673", "#fde7ad", "#fff8e6"]
+      },
+      "marquee-yellow": {
+        "role": "primary",
+        "displayName": "Marquee Yellow",
+        "canonical": "#fde047",
+        "tonalRamp": ["#4c4001", "#857001", "#bfa102", "#f9d103", "#fdde39", "#fde772", "#fef1ac", "#fffbe6"]
+      },
+      "signal-orange": {
+        "role": "secondary",
+        "displayName": "Signal Orange",
+        "canonical": "#f97316",
+        "tonalRamp": ["#4b2002", "#833803", "#bc5005", "#f56806", "#fa8a3c", "#fbac74", "#fdcead", "#fef0e6"]
+      },
+      "alert-red": {
+        "role": "tertiary",
+        "displayName": "Alert Red",
+        "canonical": "#f87171",
+        "tonalRamp": ["#490404", "#800606", "#b80909", "#f00c0c", "#f64040", "#f87878", "#fbafaf", "#fee7e7"]
+      },
+      "signal-pink": {
+        "role": "tertiary",
+        "displayName": "Signal Pink",
+        "canonical": "#f0abfc",
+        "tonalRamp": ["#3f034a", "#700582", "#a007ba", "#d009f3", "#dc3ef8", "#e776fa", "#f1aefc", "#fbe6fe"]
+      },
+      "deep-shadow": {
+        "role": "neutral",
+        "displayName": "Deep Shadow",
+        "canonical": "#100c07",
+        "tonalRamp": ["#352817", "#5e4629", "#86653b", "#af834d", "#c29f74", "#d4bb9c", "#e6d7c5", "#f7f3ed"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles, the name, and the largest project heading." },
+      "title": { "displayName": "Title", "purpose": "Window and card titles in the display face." },
+      "body": { "displayName": "Body", "purpose": "Paragraphs, list items, and chat messages." },
+      "label": { "displayName": "Label", "purpose": "Status badges, section kickers, and small uppercase chrome text." },
+      "mono": { "displayName": "Mono", "purpose": "Tool ranks/scores and inline code — data only." }
+    },
+    "shadows": [
+      { "name": "hard", "value": "4px 4px 0 0 rgba(16, 12, 7, 0.55)", "purpose": "Windows, cards, and project cards — default structural elevation." },
+      { "name": "soft", "value": "2px 2px 0 0 rgba(16, 12, 7, 0.5)", "purpose": "Chips, buttons, messages, and status rows." },
+      { "name": "bevel-inset", "value": "inset 2px 0 0 0 rgba(255, 244, 230, 0.05), inset 0 2px 0 0 rgba(255, 244, 230, 0.05), inset -2px 0 0 0 rgba(0, 0, 0, 0.4), inset 0 -2px 0 0 rgba(0, 0, 0, 0.4)", "purpose": "Lit top-left / shaded bottom-right moulded bevel on windows and the chat panel." },
+      { "name": "window-filter", "value": "drop-shadow(4px 4px 0 rgba(16, 12, 7, 0.55))", "purpose": "Notch-safe elevation for clip-path windows." },
+      { "name": "button-filter", "value": "drop-shadow(2px 2px 0 rgba(16, 12, 7, 0.5))", "purpose": "Notch-safe elevation for buttons and notched chips." },
+      { "name": "hover-lift", "value": "6px 6px 0 0 rgba(16, 12, 7, 0.55)", "purpose": "Card hover, paired with a -2px,-2px translate." }
+    ],
+    "motion": [
+      { "name": "ease-steps", "value": "steps(2, end)", "purpose": "Default easing for all state transitions and fades." },
+      { "name": "ease-steps-progress", "value": "steps(4, end)", "purpose": "Progress-bar width and the CRT avatar flicker." },
+      { "name": "duration-fast", "value": "120ms", "purpose": "Hover/active state changes." },
+      { "name": "duration-base", "value": "180ms", "purpose": "Enter/leave and stack moves." },
+      { "name": "duration-fade", "value": "400ms", "purpose": "Section fade-in on first paint." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "480px" },
+      { "name": "md", "value": "760px" },
+      { "name": "lg", "value": "900px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Notched action button for links and form actions.",
+      "html": "<button class=\"ds-btn-primary\">View</button>",
+      "css": ".ds-btn-primary{display:inline-block;padding:0.5rem 1rem;font-family:var(--font-body);font-size:1rem;font-weight:600;line-height:1.4;letter-spacing:0.01em;color:#fde047;background:var(--pixel-panel-alt);border:2px solid var(--pixel-accent);border-radius:2px;clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);filter:drop-shadow(2px 2px 0 rgba(16,12,7,0.5));text-decoration:none;cursor:pointer;transition:background 120ms steps(2,end),color 120ms steps(2,end),transform 120ms steps(2,end)}.ds-btn-primary:hover{background:var(--pixel-accent);color:var(--pixel-dark)}.ds-btn-primary:active{transform:translate(1px,1px);filter:drop-shadow(1px 1px 0 rgba(16,12,7,0.5))}.ds-btn-primary:focus-visible{outline:2px solid var(--pixel-red);outline-offset:2px}.ds-btn-primary:disabled{opacity:0.45;cursor:not-allowed;filter:none}"
+    },
+    {
+      "name": "Send Button",
+      "kind": "button",
+      "refersTo": "button-send",
+      "description": "Amber primary submit button in the chat composer.",
+      "html": "<button class=\"ds-btn-send\">Send</button>",
+      "css": ".ds-btn-send{flex-shrink:0;padding:0.5rem 1.25rem;font-family:var(--font-body);font-size:0.9375rem;font-weight:600;line-height:1.4;letter-spacing:0.01em;color:var(--pixel-dark);background:var(--pixel-accent);border:1px solid var(--pixel-border);border-radius:2px;cursor:pointer;clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);box-shadow:var(--shadow-soft);transition:background 120ms steps(2,end)}.ds-btn-send:hover:not(:disabled){background:var(--pixel-amber)}.ds-btn-send:focus-visible{outline:2px solid var(--pixel-accent);outline-offset:2px}.ds-btn-send:disabled{opacity:0.45;cursor:not-allowed}"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Notched tag for skills, modes, and inline metadata; also used as a toggle button.",
+      "html": "<span class=\"ds-chip ds-chip--amber\">100% on-device</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;padding:0.25rem 0.75rem;font-family:var(--font-body);font-size:0.9375rem;font-weight:500;line-height:1.4;color:var(--pixel-ink);background:var(--pixel-panel-alt);border:1px solid var(--pixel-border);border-radius:2px;clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);box-shadow:var(--shadow-soft)}.ds-chip--amber{color:#fef08a;border-color:rgba(253,224,71,0.55)}.ds-chip--orange{color:#fed7aa;border-color:rgba(251,146,60,0.55)}.ds-chip--red{color:#fecaca;border-color:rgba(248,113,113,0.55)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Recessed content card for education, skills, and hobbies.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card__title\">Education</h3><p>M.Sc. in Informatics, Technical University of Munich.</p></div>",
+      "css": ".ds-card{width:100%;max-width:65ch;text-align:left;background:rgba(16,12,7,0.35);border:1px solid var(--pixel-border);border-radius:2px;box-shadow:inset 1px 1px 0 0 rgba(255,244,230,0.04),var(--shadow-soft);padding:1.5rem;font-family:var(--font-body);color:var(--pixel-ink)}.ds-card__title{font-family:var(--font-display);font-size:0.875rem;line-height:1.25;color:var(--pixel-title);margin:0 0 0.75rem}"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Recessed text field for the chat composer and retrieval query.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Talk to Mini-Michi…\" />",
+      "css": ".ds-input{flex:1;min-width:0;padding:0.625rem 0.875rem;font-family:var(--font-body);font-size:0.9375rem;color:var(--pixel-ink);background:rgba(16,12,7,0.5);border:1px solid var(--pixel-border);border-radius:2px;transition:border-color 120ms steps(2,end)}.ds-input:focus-visible{outline:2px solid var(--pixel-accent);outline-offset:0}.ds-input:disabled{opacity:0.5}.ds-input::placeholder{color:var(--pixel-ink-dim);opacity:0.7}"
+    },
+    {
+      "name": "Section Window",
+      "kind": "custom",
+      "refersTo": "window-panel",
+      "description": "The signature collapsible pixel-window: notched frame, marquee bar, chrome dots, toggle.",
+      "html": "<div class=\"ds-window\"><button class=\"ds-window__bar\" type=\"button\" aria-expanded=\"true\"><span class=\"ds-window__title\">About</span><span class=\"ds-window__chrome\" aria-hidden=\"true\"><i></i><i></i><i></i></span><span class=\"ds-window__toggle\">−</span></button><div class=\"ds-window__content\"><p>Michael Jaumann — AI and ML engineer based in Munich.</p></div></div>",
+      "css": ".ds-window{width:100%;background:linear-gradient(180deg,var(--pixel-panel) 0%,var(--pixel-panel-alt) 100%);border:2px solid var(--pixel-border);clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);filter:drop-shadow(4px 4px 0 rgba(16,12,7,0.55));box-shadow:inset 2px 0 0 0 rgba(255,244,230,0.05),inset 0 2px 0 0 rgba(255,244,230,0.05),inset -2px 0 0 0 rgba(0,0,0,0.4),inset 0 -2px 0 0 rgba(0,0,0,0.4)}.ds-window__bar{position:relative;display:flex;align-items:center;gap:0.75rem;width:100%;padding:1rem 1.5rem 1.125rem;font-family:inherit;text-align:left;color:var(--pixel-ink);background:linear-gradient(180deg,#241c12 0%,#1a140c 100%);border:0;border-bottom:2px solid var(--pixel-border);cursor:pointer;transition:background 120ms steps(2,end)}.ds-window__bar:hover{background:linear-gradient(180deg,#2a2118 0%,#201a13 100%)}.ds-window__bar:focus-visible{outline:2px solid var(--pixel-accent);outline-offset:-2px}.ds-window__bar::after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background-image:repeating-conic-gradient(from 0deg,var(--pixel-amber) 0% 25%,var(--pixel-accent2) 0% 50%);background-size:8px 4px}.ds-window__title{font-family:var(--font-display);font-size:1.125rem;line-height:1.2;color:var(--pixel-title)}.ds-window__chrome{display:inline-flex;gap:0.375rem;margin-left:auto}.ds-window__chrome i{width:0.625rem;height:0.625rem;display:block;background:var(--pixel-panel-alt);border:1px solid var(--pixel-border-light);box-shadow:1px 1px 0 0 rgba(0,0,0,0.4)}.ds-window__chrome i:nth-child(1){background:var(--pixel-red)}.ds-window__chrome i:nth-child(2){background:var(--pixel-amber)}.ds-window__chrome i:nth-child(3){background:var(--pixel-orange)}.ds-window__toggle{flex-shrink:0;font-family:var(--font-body);font-weight:600;font-size:1.25rem;line-height:1;color:var(--pixel-ink-dim)}.ds-window__content{padding:2rem 2rem 2.25rem;font-family:var(--font-body);color:var(--pixel-ink)}"
+    },
+    {
+      "name": "Tool Result Row",
+      "kind": "custom",
+      "description": "Ranked retrieval row proving context pruning: rank, name, description, striped score bar, mono score, IN CONTEXT tag.",
+      "html": "<ol class=\"ds-tool-list\" style=\"list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.375rem\"><li class=\"ds-tool-result ds-tool-result--selected\"><span class=\"ds-tool-result__rank\">1</span><span class=\"ds-tool-result__name\">retrieve</span><span class=\"ds-tool-result__desc\">Rank every tool against the request and return the top-k.</span><span class=\"ds-tool-result__bar\"><i style=\"width:82%\"></i></span><span class=\"ds-tool-result__score\">0.82</span><span class=\"ds-tool-result__tag\">IN CONTEXT</span></li></ol>",
+      "css": ".ds-tool-result{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:'rank name score tag' 'rank desc desc desc' 'rank bar bar bar';gap:0.25rem 0.625rem;align-items:center;padding:0.5rem 0.625rem;background:rgba(16,12,7,0.35);border:1px solid var(--pixel-border);border-radius:2px;opacity:0.55;font-family:var(--font-body)}.ds-tool-result--selected{opacity:1;border-color:rgba(251,191,36,0.5);box-shadow:inset 2px 0 0 0 rgba(251,191,36,0.35)}.ds-tool-result__rank{grid-area:rank;display:grid;place-items:center;width:1.375rem;height:1.375rem;font-family:ui-monospace,'SF Mono','Cascadia Code',monospace;font-size:0.6875rem;color:var(--pixel-ink-dim);border:1px solid var(--pixel-border-light);border-radius:2px}.ds-tool-result__name{grid-area:name;font-size:0.8125rem;font-weight:600;color:var(--pixel-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-tool-result__desc{grid-area:desc;font-size:0.6875rem;line-height:1.4;color:var(--pixel-ink-dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.ds-tool-result__bar{grid-area:bar;display:block;height:0.375rem;background:rgba(16,12,7,0.5);border:1px solid var(--pixel-border);border-radius:2px;overflow:hidden}.ds-tool-result__bar i{display:block;height:100%;background-image:repeating-conic-gradient(from 0deg,var(--pixel-amber) 0% 25%,var(--pixel-accent2) 0% 50%);background-size:8px 6px;transition:width 180ms steps(4,end)}.ds-tool-result__score{grid-area:score;font-family:ui-monospace,'SF Mono','Cascadia Code',monospace;font-size:0.6875rem;color:var(--pixel-amber)}.ds-tool-result__tag{grid-area:tag;font-size:0.5625rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fef08a;border:1px solid rgba(253,224,71,0.55);border-radius:2px;padding:0.05rem 0.3rem}"
+    },
+    {
+      "name": "Contact Link",
+      "kind": "nav",
+      "description": "Icon + label external contact link with hover nudge.",
+      "html": "<a class=\"ds-contact-link ds-contact-link--github\" href=\"#\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.416-4.042-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.236 1.84 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.305-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.527.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.649.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.624-5.475 5.921.43.371.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.218.694.825.576 4.765-1.585 8.199-6.082 8.199-11.385 0-6.627-5.373-12-12-12z\"/></svg> GitHub</a>",
+      "css": ".ds-contact-link{display:inline-flex;align-items:center;gap:0.5rem;font-family:var(--font-body);font-size:1.125rem;font-weight:500;line-height:1.4;color:var(--pixel-ink);text-decoration:none;transition:color 120ms steps(2,end),transform 120ms steps(2,end)}.ds-contact-link:hover{transform:translateX(2px)}.ds-contact-link svg{flex-shrink:0}.ds-contact-link--linkedin:hover{color:var(--pixel-orange)}.ds-contact-link--github:hover{color:var(--pixel-amber)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Amber CRT Workbench",
+    "overview": "The site is a warm terminal glowing in a dark room. Every piece of content sits inside a chunky \"pixel-window\" — a hard-edged, notched panel with a labelled title bar — stacked on a dark, grainy desktop. The whole surface reads as one machine: the left dock runs Mini-Michi and the tool retriever, the right column holds the profile and its collapsible sections. There is no chrome borrowed from modern SaaS; the interface is assembled from bevels, hard shadows, and phosphor accents, and it is proud of it.\n\nThe mood is warm and nostalgic without becoming a costume. Colors stay on a single warm brown axis, so the screen feels like an old amber monitor rather than a flat dark theme. Controls, however, are precise and terminal-like: compact, bordered, and unambiguous. The nostalgia lives in the material, not in sloppy interaction — every affordance is legible, focusable, and keyboard-operable.\n\nThe assistant is a first-class citizen, not a bolt-on: it lives in the same window chrome, uses the same chips and buttons, and its retrieval step is shown in the open. The design's job is to make \"a real model running in your browser\" feel tangible and trustworthy.",
+    "keyCharacteristics": [
+      "Hard, structural pixel shadows and notched (never rounded) corners.",
+      "One warm ground, one amber voice; every hue lives on the brown axis.",
+      "Marquee display type for names and numerals; technical sans for everything readable.",
+      "A visible, honest system: state badges, progress bars, and tool scores are part of the look.",
+      "Stepped, frame-y motion — steps(2, end) and CRT flicker, never smooth easing."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Phosphor Amber is the only true interactive color; orange is its companion, red and pink are state. Never introduce a fourth hue, and never use red or pink as decoration.", "section": "colors" },
+      { "name": "The Warm-Only Rule", "body": "Every surface, ink, and border sits on the warm brown axis. No pure black, no pure white, no cool gray. If a value looks blue or neutral-cool, it is wrong.", "section": "colors" },
+      { "name": "The Marquee-Only Rule", "body": "Bungee Spice appears only on signage — titles, names, and numerals. It never sets a sentence of body copy. When in doubt, the technical sans wins.", "section": "typography" },
+      { "name": "The Hard-Shadow Rule", "body": "Depth is a hard offset block, never a soft blur. If a shadow is fuzzy, it is wrong — except the deliberate amber glow of the CRT highlight.", "section": "elevation" },
+      { "name": "The Notch Rule", "body": "Corners are cut, never rounded. Any radius above 2px is a bug; express corner softness as a clip-path chamfer instead.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do express every corner as a clip-path chamfer (4px chips, 6px buttons/messages, 8px windows); keep border-radius at or below 2px.",
+      "Do use --pixel-* variables and the --shadow-hard / --shadow-soft tokens; never hardcode a color or shadow.",
+      "Do animate with steps(2, end) (or steps(4, end) for progress) so motion feels frame-y.",
+      "Do keep the single accent discipline: amber means interactive, orange means companion heat.",
+      "Do keep window bars as real <button>s with aria-controls and aria-expanded, and keep :focus-visible outlines on every control."
+    ],
+    "donts": [
+      "Don't introduce soft/blurred shadows, gradients with smooth falloff, or glossy highlights.",
+      "Don't use border-radius above 2px, or any pill/rounded-corner shape.",
+      "Don't add a cool gray, blue, or pure white/black to the palette — the world is warm-only.",
+      "Don't set body copy in the display face; Bungee Spice is signage only.",
+      "Don't put component <style> blocks in .vue files — all styling lives in src/assets/main.css."
+    ]
+  }
+}
