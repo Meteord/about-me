@@ -4,7 +4,7 @@ import { MODEL_STATUS_LABEL, humanizeModelError, useChatModel } from '../composa
 import { useToolRetrieval, type RetrievalMode } from '../composables/useToolRetrieval'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { toolSelectorOpen, sampling } from '../composables/retrievalSettings'
-import { SOURCE_DEFS, decideAction } from '../tools/registry'
+import { SOURCE_DEFS, buildContextText, decideAction } from '../tools/registry'
 
 defineProps<{ onClear?: () => void }>()
 
@@ -34,6 +34,7 @@ const query = ref('')
 const busy = ref(false)
 const expanded = toolSelectorOpen
 const error = ref<string | null>(null)
+const injectedNames = ref<string[]>([])
 
 const toolDescription = (name: string): string => DESCRIPTION.get(name) ?? ''
 
@@ -43,8 +44,11 @@ async function runRetrieve(raw?: string): Promise<void> {
   query.value = text
   busy.value = true
   error.value = null
+  injectedNames.value = []
   try {
-    await retrieve(text)
+    const result = await retrieve(text)
+    const { names } = await buildContextText(result.selectedNames)
+    injectedNames.value = names
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -308,7 +312,11 @@ const themeActed = computed(() => {
                   class="tool-result__tag tool-result__tag--acted"
                   >ACTED</span
                 >
-                <span v-else-if="row.selected" class="tool-result__tag">IN CONTEXT</span>
+                <span
+                  v-else-if="row.selected && injectedNames.includes(row.name)"
+                  class="tool-result__tag"
+                  >IN CONTEXT</span
+                >
               </li>
             </ol>
 

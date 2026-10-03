@@ -66,13 +66,34 @@ export function useTraceRecorder() {
         lines.push(
           JSON.stringify({ type: 'message', message: { role: 'system', content: summary } }),
         )
-      } else if (message.role === 'action' && message.payload?.kind === 'theme') {
-        lines.push(
-          JSON.stringify({
-            type: 'message',
-            message: { role: 'system', content: `action: ${message.payload.theme}` },
-          }),
-        )
+      } else if (message.role === 'action') {
+        if (message.payload?.kind === 'theme') {
+          lines.push(
+            JSON.stringify({
+              type: 'message',
+              message: { role: 'system', content: `action: ${message.payload.theme}` },
+            }),
+          )
+        } else {
+          const kind = message.payload?.kind ?? 'unknown'
+          const detail =
+            message.payload?.kind === 'page'
+              ? message.payload.page === 'projects'
+                ? 'projects'
+                : message.payload.slug
+              : message.payload?.kind === 'section'
+                ? message.payload.section
+                : ''
+          lines.push(
+            JSON.stringify({
+              type: 'message',
+              message: {
+                role: 'system',
+                content: `navigate: ${kind}${detail ? `:${detail}` : ''}`,
+              },
+            }),
+          )
+        }
       }
     }
 

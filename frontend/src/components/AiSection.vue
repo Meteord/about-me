@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import { useChatModel, CancelledError, humanizeModelError } from '../composables/useChatModel'
+import {
+  useChatModel,
+  MODEL_STATUS_LABEL,
+  CancelledError,
+  humanizeModelError,
+} from '../composables/useChatModel'
 import { useSiteLayout, type SectionId, type ThemeName } from '../composables/useSiteLayout'
 import { useTraceRecorder } from '../composables/useTraceRecorder'
 import { blogHref, projectsHref } from '../composables/useHashRoute'
@@ -134,13 +139,16 @@ function topContentSource(rows: ToolScore[]): SourceDef | undefined {
   return undefined
 }
 
-/** Whether a later theme action followed this retrieval step (so ACTED is honest). */
+/** Whether a theme action followed this retrieval step within the same turn (so ACTED is honest). */
 function themeActed(retrievalMsg: ChatMessage): boolean {
   const index = messages.value.indexOf(retrievalMsg)
   if (index === -1) return false
-  return messages.value
-    .slice(index + 1)
-    .some((message) => message.role === 'action' && message.payload.kind === 'theme')
+  for (let i = index + 1; i < messages.value.length; i++) {
+    const message = messages.value[i]
+    if (message.role === 'user') break
+    if (message.role === 'action' && message.payload.kind === 'theme') return true
+  }
+  return false
 }
 
 function actionPayloadFor(def: SourceDef | undefined): ActionPayload | null {
@@ -392,7 +400,7 @@ async function retryModel(): Promise<void> {
         ></span>
         <div class="lv3-chat__banner-copy">
           <h2 class="lv3-chat__banner-title">Mini-Michi</h2>
-          <p class="lv3-chat__banner-status">chat model · {{ state.status }}</p>
+          <p class="lv3-chat__banner-status">chat model · {{ MODEL_STATUS_LABEL[state.status] }}</p>
         </div>
         <span class="lv3-chat__banner-mode">{{ retrievalMode }}</span>
         <button
@@ -655,7 +663,7 @@ async function retryModel(): Promise<void> {
                 :key="example"
                 class="pixel-chip pixel-chat__example"
                 type="button"
-                :disabled="isGenerating || state.status !== 'ready'"
+                :disabled="isGenerating || (state.status !== 'ready' && state.status !== 'idle')"
                 @click="handleSend(example)"
               >
                 {{ example }}
@@ -663,7 +671,7 @@ async function retryModel(): Promise<void> {
               <button
                 class="pixel-link-btn pixel-chat__shuffle"
                 type="button"
-                :disabled="isGenerating || state.status !== 'ready'"
+                :disabled="isGenerating || (state.status !== 'ready' && state.status !== 'idle')"
                 @click="pickSuggestions()"
               >
                 Shuffle
@@ -678,7 +686,7 @@ async function retryModel(): Promise<void> {
             :key="example"
             class="pixel-chip pixel-chat__example"
             type="button"
-            :disabled="isGenerating || state.status !== 'ready'"
+            :disabled="isGenerating || (state.status !== 'ready' && state.status !== 'idle')"
             @click="handleSend(example)"
           >
             {{ example }}
