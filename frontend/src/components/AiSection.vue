@@ -398,10 +398,7 @@ async function retryModel(): Promise<void> {
           :class="{ 'lv3-chat__banner-dot--err': state.status === 'error' }"
           aria-hidden="true"
         ></span>
-        <div class="lv3-chat__banner-copy">
-          <h2 class="lv3-chat__banner-title">Mini-Michi</h2>
-          <p class="lv3-chat__banner-status">chat model · {{ MODEL_STATUS_LABEL[state.status] }}</p>
-        </div>
+        <p class="lv3-chat__banner-status">chat model · {{ MODEL_STATUS_LABEL[state.status] }}</p>
         <span class="lv3-chat__banner-mode">{{ retrievalMode }}</span>
         <button
           class="pixel-link-btn pixel-chat__save"
