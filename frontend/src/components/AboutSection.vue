@@ -51,6 +51,7 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
             <template v-else>{{ tag.label }}</template>
           </span>
         </div>
+        <div class="pixel-rule" aria-hidden="true"></div>
         <div
           id="about-education"
           class="pixel-card"
@@ -58,10 +59,12 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
         >
           <h2 class="pixel-section-title">Education</h2>
           <ul class="pixel-list">
-            <li v-for="entry in siteData.education" :key="entry.degree">
-              <strong>{{ entry.degree }}</strong
-              >, {{ entry.school }} ({{ entry.period }})<br />
-              {{ entry.detail }}
+            <li v-for="entry in siteData.education" :key="entry.degree" class="pixel-edu">
+              <span class="pixel-edu__head">
+                <strong>{{ entry.degree }}</strong>
+                <span class="pixel-edu__meta">{{ entry.school }} · {{ entry.period }}</span>
+              </span>
+              <span class="pixel-edu__detail">{{ entry.detail }}</span>
             </li>
           </ul>
         </div>
@@ -71,9 +74,14 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
           :class="{ 'pixel-spotlight': state.spotlight === 'about-skills' }"
         >
           <h2 class="pixel-section-title">Skills</h2>
-          <ul class="pixel-list">
-            <li v-for="group in siteData.skills" :key="group.label">
-              <strong>{{ group.label }}:</strong> {{ group.items.join(', ') }}
+          <ul class="pixel-skills">
+            <li v-for="group in siteData.skills" :key="group.label" class="pixel-skill">
+              <span class="pixel-skill__label">{{ group.label }}</span>
+              <span class="pixel-skill__items">
+                <span v-for="item in group.items" :key="item" class="pixel-chip pixel-chip--sm">{{
+                  item
+                }}</span>
+              </span>
             </li>
           </ul>
         </div>
@@ -83,7 +91,7 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
           :class="{ 'pixel-spotlight': state.spotlight === 'about-hobbies' }"
         >
           <h2 class="pixel-section-title">Hobbies</h2>
-          <div class="pixel-tags">
+          <div class="pixel-tags pixel-tags--start">
             <span
               v-for="(hobby, index) in siteData.hobbies"
               :key="hobby"

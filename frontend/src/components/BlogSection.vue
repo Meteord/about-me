@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { blogHref } from '../composables/useHashRoute'
+import { formatBlogDate } from '../composables/useBlogDate'
 import { siteData } from '../data/siteData'
 
 const { state, isExpanded, toggle } = useSiteLayout()
@@ -32,14 +33,16 @@ const { state, isExpanded, toggle } = useSiteLayout()
             :href="blogHref(post.slug)"
             class="pixel-card blog-list__item"
           >
-            <div class="blog-list__head">
-              <h3 class="blog-list__title">{{ post.title }}</h3>
-              <span class="pixel-chip pixel-chip--amber">{{ post.readTime }}</span>
-            </div>
+            <h3 class="blog-list__title">{{ post.title }}</h3>
             <p class="blog-list__teaser">{{ post.teaser }}</p>
             <p class="blog-list__meta">
-              <span class="blog-list__date">{{ post.date }}</span>
-              <span class="blog-list__more">Read →</span>
+              <span class="blog-list__meta-start">
+                <span class="blog-list__date">{{ formatBlogDate(post.date) }}</span>
+                <span class="pixel-chip pixel-chip--sm pixel-chip--amber"
+                  >{{ post.readTime }} read</span
+                >
+              </span>
+              <span class="blog-list__more">Read <span aria-hidden="true">→</span></span>
             </p>
           </a>
         </div>

@@ -120,7 +120,7 @@ export const siteData = {
     {
       name: 'Tool retriever — LFM2.5 prompt router',
       description:
-        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. Vector search mode scores the request against all tool names in a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8); BM25 over an alias-enriched tool index acts as an instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion.',
+        'Before every reply, a retrieval step ranks the site\u2019s tools and pre-selects only the most relevant schemas. In vector mode, a single pass of the LFM2.5 prompt-router (kucukkanat ONNX export, q8) scores the request against all tool names. BM25 over an alias-enriched index is the instant fallback, and hybrid mode fuses both rankings with reciprocal rank fusion.',
       link: 'https://huggingface.co/kucukkanat/LFM2.5-Encoder-350M-Prompt-Router-ONNX',
       tags: ['LFM2.5-Encoder-350M-Prompt-Router', 'q8', 'BM25', 'RRF'],
       icon: 'funnel',
