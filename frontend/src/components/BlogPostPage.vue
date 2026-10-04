@@ -4,21 +4,12 @@ import { homeHref } from '../composables/useHashRoute'
 import { formatBlogDate } from '../composables/useBlogDate'
 import { siteData, type TechModel } from '../data/siteData'
 import { useBlogAnimation } from '../composables/useBlogAnimation'
-import { evalResults, type CaseResult, type ModeAggregate } from '../data/evalResults'
+import { evalResults, type ModeAggregate } from '../data/evalResults'
+import EvalComparison from './EvalComparison.vue'
 
 const pct = (value: number): string => `${Math.round(value * 100)}%`
-const barClip = (value: number): string => `inset(0 ${100 - Math.round(value * 100)}% 0 0)`
 const formatGeneratedAt = (iso: string): string =>
   new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-const formatLatency = (ms: number): string =>
-  ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
-const caseReason = (entry: CaseResult): string => {
-  if (!entry.retrievalPass) return 'retrieval missed'
-  if (entry.appliedTheme) return 'action misfired'
-  if (!entry.injectionPass) return 'expected source not injected'
-  if (!entry.answerPass) return 'answer drifted'
-  return 'chain failed'
-}
 
 const articleRef = ref<HTMLElement | null>(null)
 useBlogAnimation(articleRef)
@@ -37,12 +28,6 @@ const techCards = computed<{ model: TechModel; index: number }[]>(() => {
     .filter((m): m is TechModel => Boolean(m))
     .map((model, index) => ({ model, index }))
 })
-
-const CASES_PREVIEW = 3
-const casesExpanded = ref(false)
-const visibleCases = computed(() =>
-  casesExpanded.value ? evalResults.cases : evalResults.cases.slice(0, CASES_PREVIEW),
-)
 
 const evalAggregate = computed(() => {
   const { modes } = evalResults
@@ -282,45 +267,11 @@ onBeforeUnmount(() => {
           <p class="eval-results__legend">
             hit@5 — the right source is in the top 5 · injection cover — that source actually makes
             it into the context · fact recall — the answer keeps the retrieved facts · faithfulness
-            — every sentence stays grounded in them · chain pass — retrieval, injection/action and
-            answer together.
+            — every sentence stays grounded in them · action pass — theme changes fire the right
+            action · chain pass — retrieval, injection/action and answer together.
           </p>
 
-          <div class="eval-modes">
-            <article v-for="mode in evalResults.modes" :key="mode.mode" class="eval-mode">
-              <h3 class="eval-mode__title">{{ mode.mode }}</h3>
-              <dl class="eval-mode__stats">
-                <div class="eval-mode__stat">
-                  <dt>hit@{{ evalResults.config.topK }}</dt>
-                  <dd>{{ pct(mode.retrievalHitRate) }}</dd>
-                </div>
-                <div class="eval-mode__stat">
-                  <dt>injection cover</dt>
-                  <dd>{{ pct(mode.injectionCoverRate) }}</dd>
-                </div>
-                <div class="eval-mode__stat">
-                  <dt>fact recall</dt>
-                  <dd>{{ pct(mode.factRecall) }}</dd>
-                </div>
-                <div class="eval-mode__stat">
-                  <dt>faithfulness</dt>
-                  <dd>{{ pct(mode.faithfulness) }}</dd>
-                </div>
-                <div class="eval-mode__stat">
-                  <dt>latency</dt>
-                  <dd>{{ formatLatency(mode.meanTotalLatencyMs) }}</dd>
-                </div>
-                <div class="eval-mode__stat">
-                  <dt>action pass</dt>
-                  <dd>{{ pct(mode.actionPassRate) }}</dd>
-                </div>
-                <div class="eval-mode__stat eval-mode__stat--pass">
-                  <dt>chain pass</dt>
-                  <dd>{{ pct(mode.chainPassRate) }}</dd>
-                </div>
-              </dl>
-            </article>
-          </div>
+          <EvalComparison :results="evalResults" />
 
           <aside class="eval-takeaway">
             <h4 class="eval-takeaway__title">What this tells us</h4>
@@ -333,62 +284,6 @@ onBeforeUnmount(() => {
               applied directly by the retriever, no model call required.
             </p>
           </aside>
-
-          <h4 class="eval-cases__title">Per fixture</h4>
-          <ol id="eval-cases-list" class="eval-cases">
-            <li
-              v-for="entry in visibleCases"
-              :key="`${entry.mode}-${entry.fixtureIndex}`"
-              class="eval-case"
-            >
-              <div class="eval-case__head">
-                <span class="eval-case__query">{{ entry.query }}</span>
-                <span
-                  class="eval-case__marker"
-                  :class="entry.chainPass ? 'eval-case__marker--pass' : 'eval-case__marker--fail'"
-                  >{{ entry.chainPass ? 'PASS' : 'FAIL' }}</span
-                >
-              </div>
-              <p class="eval-case__meta">
-                {{ entry.mode
-                }}<template v-if="entry.effectiveMode !== entry.mode">
-                  → {{ entry.effectiveMode }}</template
-                >
-                <template v-if="entry.appliedTheme"> · action: {{ entry.appliedTheme }}</template>
-                <template v-else>
-                  · injected:
-                  {{ entry.injectedNames.length ? entry.injectedNames.join(', ') : 'none' }}
-                </template>
-              </p>
-              <p v-if="!entry.chainPass" class="eval-case__reason">{{ caseReason(entry) }}</p>
-              <div class="eval-case__bars">
-                <div class="eval-bar">
-                  <span class="eval-bar__label">fact recall</span>
-                  <span class="tool-result__bar eval-bar__track" aria-hidden="true">
-                    <i :style="{ clipPath: barClip(entry.score.factRecall) }"></i>
-                  </span>
-                  <span class="eval-bar__value">{{ pct(entry.score.factRecall) }}</span>
-                </div>
-                <div class="eval-bar">
-                  <span class="eval-bar__label">faithfulness</span>
-                  <span class="tool-result__bar eval-bar__track" aria-hidden="true">
-                    <i :style="{ clipPath: barClip(entry.score.faithfulness) }"></i>
-                  </span>
-                  <span class="eval-bar__value">{{ pct(entry.score.faithfulness) }}</span>
-                </div>
-              </div>
-            </li>
-          </ol>
-          <button
-            v-if="evalResults.cases.length > CASES_PREVIEW"
-            type="button"
-            class="pixel-link-btn eval-cases__more"
-            :aria-expanded="casesExpanded"
-            aria-controls="eval-cases-list"
-            @click="casesExpanded = !casesExpanded"
-          >
-            {{ casesExpanded ? 'Show fewer' : `Show all ${evalResults.cases.length} cases` }}
-          </button>
 
           <div v-if="evalResults.traces" class="eval-traces">
             <h4 class="eval-traces__title">Runtime traces</h4>
