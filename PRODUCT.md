@@ -30,7 +30,7 @@ A neighboring personal site could not truthfully copy the mechanism: a real SLM 
 
 - Visitors browse a single-page site whose sections are collapsible "pixel-window" cards; blog posts and the projects listing live on hash-routed pages (`#/blog/...`, `#/projects`).
 - The chat dock (Mini-Michi) is available alongside every view. On first send it lazily loads the chat model, then streams replies token-by-token.
-- Before each reply the chat retrieves the top-k relevant tools and passes only those schemas to the model; retrieval modes are `lexical` (BM25, instant), `vector` (prompt-router, lazy ~357 MB download), and `hybrid` (reciprocal rank fusion).
+- Before each reply the chat retrieves the top-k relevant tools and passes only those schemas to the model; retrieval modes are `bm25` (pure BM25 keyword match, instant), `vector` (prompt-router, lazy ~357 MB download), and `hybrid` (reciprocal rank fusion).
 - Tools either answer questions about Michael (`about_me`), describe the site from generated content (`about_site`), or rearrange the visible sections.
 - No accounts, no persistence beyond the session, no analytics requirement established.
 

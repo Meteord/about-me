@@ -14,7 +14,7 @@ extra flags:
 
 ```sh
 cd frontend
-npm run eval:chain -- --modes=lexical --traces=frontend/traces
+npm run eval:chain -- --modes=bm25 --traces=frontend/traces
 ```
 
 You can also point the eval at a single file or an HTTPS URL:

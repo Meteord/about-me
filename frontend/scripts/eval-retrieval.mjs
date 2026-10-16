@@ -2,22 +2,28 @@
  * Systematic retrieval evaluation: loads the real registry + useToolRetrieval
  * implementation in Node (transpiled with the local TypeScript, externals
  * stubbed), runs the fixtures in scripts/eval-fixtures.mjs through every
- * retrieval mode and reports Hit@K and MRR.
+ * retrieval mode and reports Hit@K and MRR per split.
  *
- * - lexical runs without any model download.
+ * A fail-fast pre-run gate validates split integrity + corpus hygiene
+ * (eval-lib validateSplitIntegrity) before any retrieval.
+ *
+ * - bm25 runs without any model download.
  * - vector/hybrid lazily download the prompt-router checkpoint (~357 MB, q8)
  *   and cache it in the default transformers.js cache (~/.cache/huggingface).
  * - decide lazily downloads the GLiNER2.5-Decide checkpoint (~345 MB, q4f16).
- *   Use --modes=lexical for the offline-only pass.
+ *   Use --modes=bm25 for the offline-only pass.
  *
- * Usage: npm run eval:retrieval [-- --modes=lexical|vector|hybrid|decide,... --topk=5]
- * Exits non-zero when any fixture has no expected tool inside the top-K.
+ * Usage: npm run eval:retrieval [-- --modes=bm25|vector|hybrid|decide,... --topk=5]
+ * Exits non-zero when a TEST-split fixture has no expected tool inside the
+ * top-K (the gate). Train-split misses print as MISS but never fail the run —
+ * train is the tuning reference, not the gate (FR-004).
  */
 
 import { readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { validateSplitIntegrity } from './eval-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const srcDir = join(here, '..', 'src')
@@ -92,6 +98,17 @@ const detectDevicePath = join(srcDir, 'composables', 'detectDevice.ts')
 const retrievalSettingsPath = join(srcDir, 'composables', 'retrievalSettings.ts')
 const useToolRetrievalPath = join(srcDir, 'composables', 'useToolRetrieval.ts')
 
+function loadRegistry() {
+  const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
+  const requireFn = (request) => {
+    if (request === './retrievalSettings' || request === '../composables/retrievalSettings') {
+      return settings
+    }
+    return stubbedRequire(request)
+  }
+  return module(requireFn, transpile(registryPath)) ?? {}
+}
+
 function loadUseToolRetrieval() {
   const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
   // Node's onnxruntime has no 'wasm' device; browsers do — remap for the test.
@@ -116,6 +133,39 @@ function loadUseToolRetrieval() {
 }
 
 /* ------------------------------------------------------------------ */
+/* CLI + fail-fast integrity gate (before any retrieval)                */
+/* ------------------------------------------------------------------ */
+
+const VALID_MODES = ['bm25', 'vector', 'hybrid', 'decide']
+
+const args = process.argv.slice(2)
+const arg = (name, fallback) => {
+  const hit = args.find((value) => value.startsWith(`--${name}=`))
+  return hit ? hit.split('=').slice(1).join('=').split(',') : fallback
+}
+
+const modesArg = arg('modes', VALID_MODES)
+const topK = Number(arg('topk', ['5'])[0]) || 5
+
+const invalidModes = modesArg.filter((mode) => !VALID_MODES.includes(mode))
+if (invalidModes.length > 0) {
+  console.error(
+    `no valid retrieval modes requested (${modesArg.join(',')}) — valid modes: ${VALID_MODES.join(', ')}`,
+  )
+  process.exit(1)
+}
+
+const integrityErrors = validateSplitIntegrity({
+  fixtures: FIXTURES,
+  docs: loadRegistry().getSourceDocs(),
+})
+if (integrityErrors.length > 0) {
+  console.error('split integrity check failed:')
+  for (const error of integrityErrors) console.error(`  - ${error}`)
+  process.exit(1)
+}
+
+/* ------------------------------------------------------------------ */
 /* Metrics                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -132,21 +182,14 @@ function mrr(rows, expected) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Run                                                                  */
+/* Run (split-aware; the gate is the TEST split only)                   */
 /* ------------------------------------------------------------------ */
 
-const args = process.argv.slice(2)
-const arg = (name, fallback) => {
-  const hit = args.find((value) => value.startsWith(`--${name}=`))
-  return hit ? hit.split('=').slice(1).join('=').split(',') : fallback
-}
-
-const modesArg = arg('modes', ['lexical', 'vector', 'hybrid', 'decide'])
-const topK = Number(arg('topk', ['5'])[0]) || 5
-
 const retriever = loadUseToolRetrieval()
-const results = []
-let failures = 0
+const bySplit = {
+  train: FIXTURES.filter((fixture) => fixture.split === 'train'),
+  test: FIXTURES.filter((fixture) => fixture.split === 'test'),
+}
 
 if (modesArg.includes('vector') || modesArg.includes('hybrid')) {
   process.stderr.write('initializing prompt-router (downloads on first run)…\n')
@@ -164,45 +207,57 @@ if (modesArg.includes('decide')) {
   )
 }
 
+const results = []
+const missedTest = []
+let trainMisses = 0
+
 for (const mode of modesArg) {
-  if (mode === 'lexical' || mode === 'vector' || mode === 'hybrid' || mode === 'decide') {
-    console.log(`\n=== mode: ${mode} (top ${topK}) ===`)
-    const headerHit = []
-    const headerMrr = []
-    const headerLatencyMs = []
-    for (const { query, expected } of FIXTURES) {
-      const result = await retriever.retrieve(query, { mode, topK })
-      const hit = hitAtK(result.selectedNames, expected, topK)
-      const rank = mrr(result.rows, expected)
-      failures += hit === 0 ? 1 : 0
-      headerHit.push(hit)
-      headerMrr.push(rank)
-      headerLatencyMs.push(result.stats.latencyMs)
-      const marker = hit ? 'ok  ' : 'MISS'
-      console.log(
-        `[${marker}] ${query} → ${result.selectedNames.slice(0, topK).join(', ') || '(none)'} ` +
-          `(mrr ${rank.toFixed(2)}, ${result.stats.latencyMs}ms)`,
-      )
-    }
-    const n = FIXTURES.length
-    results.push({
-      mode,
-      hitRate: headerHit.reduce((a, b) => a + b, 0) / n,
-      mrr: headerMrr.reduce((a, b) => a + b, 0) / n,
-      totalLatencyMs: headerLatencyMs.reduce((a, b) => a + b, 0),
-    })
+  console.log(`\n=== mode: ${mode} (top ${topK}) ===`)
+  const perSplit = {
+    train: { hit: [], mrr: [], latencyMs: [] },
+    test: { hit: [], mrr: [], latencyMs: [] },
   }
-}
+  for (const { query, expected, split } of FIXTURES) {
+    const result = await retriever.retrieve(query, { mode, topK })
+    const hit = hitAtK(result.selectedNames, expected, topK)
+    const rank = mrr(result.rows, expected)
+    perSplit[split].hit.push(hit)
+    perSplit[split].mrr.push(rank)
+    perSplit[split].latencyMs.push(result.stats.latencyMs)
+    if (!hit) {
+      if (split === 'test') missedTest.push({ mode, query })
+      else trainMisses++
+    }
+    const marker = hit ? 'ok  ' : 'MISS'
+    console.log(
+      `[${marker}] [${split}] ${query} → ${result.selectedNames.slice(0, topK).join(', ') || '(none)'} ` +
+        `(mrr ${rank.toFixed(2)}, ${result.stats.latencyMs}ms)`,
+    )
+  }
+  const summarize = (split) => ({
+    hitRate: perSplit[split].hit.reduce((a, b) => a + b, 0) / bySplit[split].length,
+    mrr: perSplit[split].mrr.reduce((a, b) => a + b, 0) / bySplit[split].length,
+    meanLatencyMs:
+      perSplit[split].latencyMs.reduce((a, b) => a + b, 0) / perSplit[split].latencyMs.length,
+  })
+  results.push({ mode, test: summarize('test'), train: summarize('train') })
 
-for (const r of results) {
   console.log(
-    `${r.mode}: hit@${topK} = ${(r.hitRate * 100).toFixed(0)}% · MRR = ${r.mrr.toFixed(3)} · mean latency ${Math.round(r.totalLatencyMs / FIXTURES.length)}ms`,
+    `test:  hit@${topK} = ${(results.at(-1).test.hitRate * 100).toFixed(0)}% · MRR = ${results.at(-1).test.mrr.toFixed(3)} · mean latency ${Math.round(results.at(-1).test.meanLatencyMs)}ms`,
+  )
+  console.log(
+    `train (tuning reference — not the gate): hit@${topK} = ${(results.at(-1).train.hitRate * 100).toFixed(0)}% · MRR = ${results.at(-1).train.mrr.toFixed(3)} · mean latency ${Math.round(results.at(-1).train.meanLatencyMs)}ms`,
   )
 }
 
-if (failures > 0) {
+if (trainMisses > 0) {
+  console.log(`\ntrain misses (tuning reference — not the gate): ${trainMisses}`)
+}
+
+if (missedTest.length > 0) {
   console.error(
-    `\n${failures}/${FIXTURES.length * results.length} fixtures missed the expected tools`,
+    `\n${missedTest.length} test fixture(s) missed the expected tools (top ${topK}) — the gate:`,
   )
+  for (const miss of missedTest) console.error(`  - [${miss.mode}] ${miss.query}`)
   process.exitCode = 1
 }

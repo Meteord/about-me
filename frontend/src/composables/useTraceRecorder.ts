@@ -60,7 +60,7 @@ export function useTraceRecorder() {
         const injected = (message.injectedNames ?? []).join(', ')
         const summary =
           `retrieval · top ${selectedNames.length}/${stats?.total ?? selectedNames.length} · ` +
-          `effective ${stats?.effective ?? 'lexical'} · ${stats?.latencyMs ?? 0}ms · ` +
+          `effective ${stats?.effective ?? 'bm25'} · ${stats?.latencyMs ?? 0}ms · ` +
           `selected: ${selectedNames.join(', ') || '(none)'}` +
           (injected ? ` · injected: ${injected}` : '')
         lines.push(

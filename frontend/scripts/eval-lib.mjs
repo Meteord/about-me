@@ -203,6 +203,137 @@ export async function loadAllSourceTexts(registry) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Split integrity + corpus hygiene (data-model §1 V1–V7, FR-006/SC-004)*/
+/* ------------------------------------------------------------------ */
+
+/** German marker tokens (function/content words unambiguous in query position)
+    used by the V4 language-parity check. */
+const GERMAN_MARKERS = new Set([
+  'und', 'ist', 'sind', 'wie', 'wo', 'wer', 'ich', 'mich', 'mir', 'nicht', 'kann',
+  'kannst', 'seine', 'seiner', 'seinem', 'ihre', 'ihren', 'ihrem', 'für', 'über',
+  'macht', 'machen', 'arbeite', 'arbeitet', 'wohnt', 'wohne', 'studiert', 'freizeit',
+  'kontaktieren', 'fähigkeiten', 'ausbildung', 'münchen', 'hochschule',
+])
+
+function isGermanQuery(query) {
+  return (String(query).toLowerCase().match(/[\p{L}]+/gu) ?? []).some((token) =>
+    GERMAN_MARKERS.has(token),
+  )
+}
+
+/** Trivial-reorder key (FR-006): the normalized query's tokens, sorted. */
+export function reorderKey(text) {
+  return normalize(text)
+    .split(' ')
+    .filter(Boolean)
+    .sort()
+    .join(' ')
+}
+
+/**
+ * Validate the fixture list against the split-integrity rules (data-model §1
+ * V1–V7) and the FR-006/SC-004 corpus-hygiene rule. Parameterized by the fixture
+ * list and the corpus docs from getSourceDocs(); runs fully offline, before any
+ * retrieval. Returns an array of hard-error strings (empty = valid) — callers
+ * exit non-zero and print every entry.
+ */
+export function validateSplitIntegrity({ fixtures, docs }) {
+  const errors = []
+  const report = (message) => errors.push(message)
+
+  // V1 — a valid `split` on every fixture; V7 — `note` on every test fixture.
+  for (const fixture of fixtures) {
+    const label = JSON.stringify(fixture.query)
+    if (fixture.split !== 'train' && fixture.split !== 'test') {
+      report(`V1: fixture ${label} has no valid split field (expected 'train' | 'test')`)
+      continue
+    }
+    if (fixture.split === 'test' && !String(fixture.note ?? '').trim()) {
+      report(`V7: test fixture ${label} is missing its note provenance marker`)
+    }
+  }
+
+  const train = fixtures.filter((fixture) => fixture.split === 'train')
+  const test = fixtures.filter((fixture) => fixture.split === 'test')
+
+  // V2 — test split ≥ ⌈N/3⌉ of ALL fixtures and ≥ 10.
+  const minTest = Math.max(Math.ceil(fixtures.length / 3), 10)
+  if (test.length < minTest) {
+    report(
+      `V2: test split too small — ${test.length} of ${fixtures.length} fixtures (need ≥ ${minTest})`,
+    )
+  }
+
+  // V3 — every SOURCE_DEFS name (content sources + set_theme) is covered by
+  // some test fixture's expected set.
+  const testExpected = new Set(test.flatMap((fixture) => fixture.expected))
+  for (const doc of docs) {
+    if (!testExpected.has(doc.name)) {
+      report(`V3: source/action "${doc.name}" never appears in a test fixture's expected`)
+    }
+  }
+
+  // V4 — ≥ 2 German queries per split, from ≥ 2 different expected sources.
+  for (const [name, split] of [
+    ['train', train],
+    ['test', test],
+  ]) {
+    const german = split.filter((fixture) => isGermanQuery(fixture.query))
+    const germanSources = new Set(german.flatMap((fixture) => fixture.expected))
+    if (german.length < 2 || germanSources.size < 2) {
+      report(
+        `V4: ${name} split needs ≥ 2 German queries from ≥ 2 different sources (found ${german.length} from ${germanSources.size})`,
+      )
+    }
+  }
+
+  // V5 — "no selection" (expected: []) fixtures in both splits.
+  for (const [name, split] of [
+    ['train', train],
+    ['test', test],
+  ]) {
+    if (!split.some((fixture) => Array.isArray(fixture.expected) && fixture.expected.length === 0)) {
+      report(`V5: ${name} split has no "no selection" (expected: []) fixture`)
+    }
+  }
+
+  // V6 — every test-expected source is also covered by ≥ 1 train fixture.
+  const trainExpected = new Set(train.flatMap((fixture) => fixture.expected))
+  for (const name of [...testExpected].sort()) {
+    if (!trainExpected.has(name)) {
+      report(`V6: source/action "${name}" is expected by a test fixture but has no train fixture`)
+    }
+  }
+
+  // FR-006/SC-004 — no test query (verbatim or trivially reordered) may appear
+  // in the retrieval corpus text. Train-split queries are ignored (aliases
+  // duplicating train wording are the legitimate tuning lever).
+  const corpus = docs.map((doc) => ({
+    name: doc.name,
+    normalized: normalize(doc.text),
+    sorted: reorderKey(doc.text),
+  }))
+  for (const fixture of test) {
+    const verbatim = normalize(fixture.query)
+    const reordered = reorderKey(fixture.query)
+    if (reordered.split(' ').length < 2) continue
+    for (const doc of corpus) {
+      if (doc.normalized.includes(verbatim)) {
+        report(
+          `FR-006: test query ${JSON.stringify(fixture.query)} appears verbatim in corpus doc "${doc.name}" — rename the alias/entry`,
+        )
+      } else if (doc.sorted.includes(reordered)) {
+        report(
+          `FR-006: test query ${JSON.stringify(fixture.query)} appears trivially reordered in corpus doc "${doc.name}" — rename the alias/entry`,
+        )
+      }
+    }
+  }
+
+  return errors
+}
+
+/* ------------------------------------------------------------------ */
 /* Deterministic answer judge (contracts/eval-metrics.md, judge.md)    */
 /* ------------------------------------------------------------------ */
 

@@ -48,7 +48,7 @@ const DECIDE_TOKEN_IDS = {
 const DECIDE_MAX_LENGTH = 1024
 const DECIDE_MAX_STATE_TOKENS = 896
 
-export type RetrievalMode = 'lexical' | 'vector' | 'hybrid' | 'decide'
+export type RetrievalMode = 'bm25' | 'vector' | 'hybrid' | 'decide'
 export type VectorStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface VectorState {
@@ -629,43 +629,101 @@ export function disposeDecide(): void {
 }
 
 /* ------------------------------------------------------------------ */
-/* Lexical retriever (BM25, instant, always available)                 */
+/* BM25 retriever (pure BM25, instant, always available)                */
 /* ------------------------------------------------------------------ */
 
-const STOPWORDS = new Set([
-  'the',
-  'a',
-  'an',
-  'to',
-  'of',
-  'in',
-  'on',
-  'for',
-  'and',
-  'or',
-  'is',
-  'are',
-  'what',
-  'how',
-  'can',
-  'you',
-  'with',
-  'about',
-  'this',
-  'from',
-  'which',
-  'it',
-  'be',
-])
+/**
+ * Stopwords: the union of two verbatim, cited published constants (FR-007;
+ * research R1). Both are famous reference constants copied WITHOUT
+ * modification — no term was added or removed because of any fixture — and the
+ * scoring function below is untouched textbook Okapi BM25 (k1 = 1.2, b = 0.75).
+ */
+/** Lucene `_english_` default stop set (StandardAnalyzer's
+    ENGLISH_STOP_WORDS_SET, as shipped by Lucene and Elasticsearch's
+    `_english_` stop token filter). */
+const LUCENE_ENGLISH_STOPWORDS = `
+a an and are as at be but by for if in into is it no not of on or such that the
+their then there these they this to was will with
+`
+  .split(/\s+/)
+  .filter(Boolean)
 
+/** Lucene `_german_` predefined stop set — verbatim from
+    lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball/german_stop.txt
+    (the Snowball German stop list; Lucene's GermanAnalyzer.getDefaultStopSet()
+    and Elasticsearch's `_german_` stop token filter load exactly this file —
+    its own artifacts like "daß", "anderr" and "unse" included). */
+const LUCENE_GERMAN_STOPWORDS = `
+aber alle allem allen aller alles als also am an
+ander andere anderem anderen anderer anderes anderm andern anderr anders
+auch auf aus bei bin bis bist da damit dann
+der den des dem die das daß
+derselbe derselben denselben desselben demselben dieselbe dieselben dasselbe
+dazu
+dein deine deinem deinen deiner deines
+denn derer dessen
+dich dir du
+dies diese diesem diesen dieser dieses
+doch dort
+durch
+ein eine einem einen einer eines
+einig einige einigem einigen einiger einiges
+einmal
+er ihn ihm
+es etwas
+euer eure eurem euren eurer eures
+für gegen gewesen
+hab habe haben hat hatte hatten
+hier hin hinter
+ich mich mir
+ihr ihre ihrem ihren ihrer ihres euch
+im in indem ins ist
+jede jedem jeden jeder jedes
+jene jenem jenen jener jenes
+jetzt kann
+kein keine keinem keinen keiner keines
+können könnte machen man
+manche manchem manchen mancher manches
+mein meinem meinen meiner meines meine
+mit muss musste nach nicht nichts noch nun nur ob oder ohne sehr
+sein seinem seinen seiner seines seine
+selbst sich
+sie ihnen
+sind so
+solche solchem solchen solcher solches
+soll sollte sondern sonst
+über um und
+uns unse unsem unsen unser unses
+unter viel
+vom von vor
+während war waren warst was
+weg weil weiter
+welche welchem welchen welcher welches
+wenn werde werden wie wieder
+will wir wird wirst
+wo
+wollen wollte
+würde würden
+zu zum zur
+zwar zwischen
+`
+  .split(/\s+/)
+  .filter(Boolean)
+
+const STOPWORDS = new Set([...LUCENE_ENGLISH_STOPWORDS, ...LUCENE_GERMAN_STOPWORDS])
+
+/** Standard letter/digit tokenizer: lowercase, split on every character that
+    is not a Unicode letter or digit (mirrors a Lucene letter-or-digit
+    tokenizer — keeps `mucgpt`, `blog`, digits; drops punctuation), then drop
+    the published stop words. No length filter, no fixture-derived terms. */
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
-    .split(/[^a-z0-9_]+/)
-    .filter((token) => token.length > 1 && !STOPWORDS.has(token))
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token !== '' && !STOPWORDS.has(token))
 }
 
-function lexicalScores(query: string, docs: SourceDoc[]): number[] {
+function bm25Scores(query: string, docs: SourceDoc[]): number[] {
   const terms = tokenize(query)
   const docTokens = docs.map((doc) => tokenize(doc.text))
   const docFreq: Record<string, number> = {}
@@ -699,20 +757,21 @@ function lexicalScores(query: string, docs: SourceDoc[]): number[] {
 
 const RRF_K = 60
 
-function hybridScores(lexical: number[], vector: number[]): number[] {
+function hybridScores(bm25: number[], vector: number[]): number[] {
   const rankOf = (scores: number[]): number[] => {
     const order = scores.map((score, index) => [score, index] as const)
-    order.sort((a, b) => b[0] - a[0])
+    // score descending, tie-broken by original index (stable + engine-proof)
+    order.sort((a, b) => b[0] - a[0] || a[1] - b[1])
     const ranks = Array.from({ length: scores.length }, () => 0)
     order.forEach(([, index], rank) => {
       ranks[index] = rank
     })
     return ranks
   }
-  const lexRanks = rankOf(lexical)
+  const bm25Ranks = rankOf(bm25)
   const vectorRanks = rankOf(vector)
-  const fused = lexical.map(
-    (_, index) => 1 / (RRF_K + lexRanks[index] + 1) + 1 / (RRF_K + vectorRanks[index] + 1),
+  const fused = bm25.map(
+    (_, index) => 1 / (RRF_K + bm25Ranks[index] + 1) + 1 / (RRF_K + vectorRanks[index] + 1),
   )
   const max = Math.max(...fused, 1e-9)
   return fused.map((score) => score / max)
@@ -740,7 +799,7 @@ export async function retrieve(
         total: docs.length,
         selected: 0,
         mode: selectedMode,
-        effective: 'lexical',
+        effective: 'bm25',
         totalChars,
         prunedChars: 0,
         latencyMs: 0,
@@ -753,29 +812,34 @@ export async function retrieve(
   const needsVector = selectedMode === 'vector' || selectedMode === 'hybrid'
   const needsDecide = selectedMode === 'decide'
   let effective: RetrievalMode =
-    needsVector && !vectorReady ? 'lexical' : needsDecide && !decideReady ? 'lexical' : selectedMode
+    needsVector && !vectorReady ? 'bm25' : needsDecide && !decideReady ? 'bm25' : selectedMode
 
   let scores: number[]
   try {
-    if (
-      selectedMode === 'lexical' ||
-      (needsVector && !vectorReady) ||
-      (needsDecide && !decideReady)
-    ) {
-      scores = lexicalScores(query, docs)
+    if (selectedMode === 'bm25' || (needsVector && !vectorReady) || (needsDecide && !decideReady)) {
+      scores = bm25Scores(query, docs)
     } else if (selectedMode === 'vector') {
       scores = await vectorScores(query, docs)
     } else if (selectedMode === 'hybrid') {
-      scores = hybridScores(lexicalScores(query, docs), await vectorScores(query, docs))
+      scores = hybridScores(bm25Scores(query, docs), await vectorScores(query, docs))
     } else {
       scores = await decideScores(query, docs)
     }
   } catch {
-    scores = lexicalScores(query, docs)
-    effective = 'lexical'
+    scores = bm25Scores(query, docs)
+    effective = 'bm25'
   }
 
-  const order = scores.map((_, index) => index).sort((a, b) => scores[b] - scores[a])
+  // Deterministic ordering (Edge case 5): score descending, tie-broken by
+  // candidate name ascending (then original index) — equal BM25 scores can
+  // never re-rank across runs.
+  const order = scores
+    .map((score, index) => ({ score, name: docs[index].name, index }))
+    .sort(
+      (a, b) =>
+        b.score - a.score || (a.name < b.name ? -1 : a.name > b.name ? 1 : a.index - b.index),
+    )
+    .map((entry) => entry.index)
   const maxScore = Math.max(...scores, 1e-9)
 
   const rows = order.map((index, rank) => {
