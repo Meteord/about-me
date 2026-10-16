@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { Tensor } from '@huggingface/transformers'
 import { detectDevice } from './detectDevice'
+import { useJsepWasm, type TransformersEnv } from './useJsepWasm'
 import { sampling } from './retrievalSettings'
 
 const MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX'
@@ -39,7 +40,7 @@ export function humanizeModelError(message: string): string {
     return 'The model download failed — check your connection and try again.'
   }
   if (lower.includes('webgpu') || lower.includes('gpu') || lower.includes('device')) {
-    return 'The browser could not start the model engine — retry, or use a WebGPU-capable browser.'
+    return 'The browser could not start the model engine — reload the page to retry, or use a browser where WebGPU works.'
   }
   return 'Mini-Michi could not start — please try again.'
 }
@@ -107,16 +108,43 @@ function progressCallback(progress: { status?: string; file?: string; progress?:
   }
 }
 
-async function detectChatDevice(): Promise<{ device: ModelDevice; dtype: 'q4' | 'q8' }> {
+async function detectChatDevice(): Promise<ModelDevice> {
   const { gpu } = await detectDevice()
-  return gpu ? { device: 'webgpu', dtype: 'q4' } : { device: 'wasm', dtype: 'q8' }
+  return gpu ? 'webgpu' : 'wasm'
 }
 
 async function loadTransformers(): Promise<TransformerModule> {
   const mod = await import('@huggingface/transformers')
   mod.env.allowLocalModels = false
   mod.env.useBrowserCache = true
+  // The vite alias routes transformers' ORT import to the full bundle, whose
+  // int4 kernels only dispatch against the JSEP wasm factory — point the wasm
+  // binary there before any session (chat, vector or decide) is created.
+  useJsepWasm(mod.env as unknown as TransformersEnv)
   return mod as unknown as TransformerModule
+}
+
+/** One download + session-creation attempt; enables the state machine's
+    `loading` UI and reports the device only once it actually succeeds. */
+async function attemptLoad(
+  module: TransformerModule,
+  engine: { device: ModelDevice; dtype: 'q4' | 'q8' },
+): Promise<void> {
+  state.value.status = 'loading'
+  state.value.progress = 0
+  state.value.file = ''
+  state.value.dtype = engine.dtype
+
+  const tokenizer = await module.AutoTokenizer.from_pretrained(MODEL_ID, {
+    progress_callback: progressCallback,
+  })
+  const model = await module.AutoModelForCausalLM.from_pretrained(MODEL_ID, {
+    ...engine,
+    progress_callback: progressCallback,
+  })
+
+  instance = { tokenizer, model, module }
+  state.value.device = engine.device
 }
 
 async function loadModelInner(): Promise<void> {
@@ -129,24 +157,28 @@ async function loadModelInner(): Promise<void> {
 
   try {
     const module = await loadTransformers()
-    const { device, dtype } = await detectChatDevice()
-    state.value.device = device
-    state.value.dtype = dtype
+    const device = await detectChatDevice()
 
-    state.value.status = 'loading'
-    const tokenizer = await module.AutoTokenizer.from_pretrained(MODEL_ID, {
-      progress_callback: progressCallback,
-    })
-    const model = await module.AutoModelForCausalLM.from_pretrained(MODEL_ID, {
-      device,
-      dtype,
-      progress_callback: progressCallback,
-    })
+    if (device === 'webgpu') {
+      try {
+        await attemptLoad(module, { device: 'webgpu', dtype: 'q4' })
+      } catch {
+        // Fall through to the WASM engine below. transformers.js chains session
+        // creations through a module promise that is never reset after a
+        // rejection, so this fallback only completes when the WebGPU attempt
+        // failed before any session was created (e.g. a failed q4 download) —
+        // otherwise the page needs a reload, whose detection then picks WASM.
+        instance = null
+      }
+    }
+    if (!instance) {
+      await attemptLoad(module, { device: 'wasm', dtype: 'q8' })
+    }
 
-    instance = { tokenizer, model, module }
     state.value.status = 'ready'
     state.value.progress = 100
   } catch (error) {
+    instance = null
     state.value.status = 'error'
     state.value.error = error instanceof Error ? error.message : String(error)
     throw error

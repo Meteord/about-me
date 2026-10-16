@@ -116,6 +116,7 @@ const detectDevicePath = join(srcDir, 'composables', 'detectDevice.ts')
 const retrievalSettingsPath = join(srcDir, 'composables', 'retrievalSettings.ts')
 const useToolRetrievalPath = join(srcDir, 'composables', 'useToolRetrieval.ts')
 const useChatModelPath = join(srcDir, 'composables', 'useChatModel.ts')
+const useJsepWasmPath = join(srcDir, 'composables', 'useJsepWasm.ts')
 
 export function loadSiteData() {
   return module(frontendRequire, transpile(siteDataPath)).siteData
@@ -136,6 +137,7 @@ export function loadUseToolRetrieval() {
   const stubbedRequire = createStubbedRequire({ siteData })
   const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
   const detectDevice = module(stubbedRequire, transpile(detectDevicePath))
+  const useJsepWasm = module(stubbedRequire, transpile(useJsepWasmPath))
   const requireFn = (request) => {
     if (request === './retrievalSettings' || request === '../composables/retrievalSettings') {
       return settings
@@ -147,6 +149,7 @@ export function loadUseToolRetrieval() {
   const retrieverRequire = (request) => {
     if (request === '../tools/registry') return registry
     if (request === './detectDevice') return detectDevice
+    if (request === './useJsepWasm') return useJsepWasm
     return requireFn(request)
   }
   const code = transpile(useToolRetrievalPath)
@@ -161,6 +164,7 @@ export function loadUseChatModel(dtype = 'q8', opts = {}) {
   const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
   settings.sampling.value = opts.sampling ?? false
   const detectDevice = module(stubbedRequire, transpile(detectDevicePath))
+  const useJsepWasm = module(stubbedRequire, transpile(useJsepWasmPath))
   const requireFn = (request) => {
     if (request === './retrievalSettings' || request === '../composables/retrievalSettings') {
       return settings
@@ -172,6 +176,7 @@ export function loadUseChatModel(dtype = 'q8', opts = {}) {
   const chatRequire = (request) => {
     if (request === '../tools/registry') return registry
     if (request === './detectDevice') return detectDevice
+    if (request === './useJsepWasm') return useJsepWasm
     return requireFn(request)
   }
   let code = transpile(useChatModelPath)

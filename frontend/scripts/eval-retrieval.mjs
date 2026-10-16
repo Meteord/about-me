@@ -97,6 +97,7 @@ const registryPath = join(srcDir, 'tools', 'registry.ts')
 const detectDevicePath = join(srcDir, 'composables', 'detectDevice.ts')
 const retrievalSettingsPath = join(srcDir, 'composables', 'retrievalSettings.ts')
 const useToolRetrievalPath = join(srcDir, 'composables', 'useToolRetrieval.ts')
+const useJsepWasmPath = join(srcDir, 'composables', 'useJsepWasm.ts')
 
 function loadRegistry() {
   const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
@@ -113,6 +114,7 @@ function loadUseToolRetrieval() {
   const settings = module(stubbedRequire, transpile(retrievalSettingsPath))
   // Node's onnxruntime has no 'wasm' device; browsers do — remap for the test.
   const detectDevice = module(stubbedRequire, transpile(detectDevicePath))
+  const useJsepWasm = module(stubbedRequire, transpile(useJsepWasmPath))
   const requireFn = (request) => {
     if (request === './retrievalSettings' || request === '../composables/retrievalSettings') {
       return settings
@@ -124,6 +126,7 @@ function loadUseToolRetrieval() {
   const retrieverRequire = (request) => {
     if (request === '../tools/registry') return registry
     if (request === './detectDevice') return detectDevice
+    if (request === './useJsepWasm') return useJsepWasm
     return requireFn(request)
   }
   const code = transpile(useToolRetrievalPath)

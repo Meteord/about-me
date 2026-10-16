@@ -8,6 +8,7 @@ import {
   type SourceDoc,
 } from '../tools/registry'
 import { detectDevice, type Device } from './detectDevice'
+import { useJsepWasm, type TransformersEnv } from './useJsepWasm'
 import { mode, topK } from './retrievalSettings'
 
 /**
@@ -118,31 +119,6 @@ interface ModelLike {
     rule_proj: Tensor
   }>
   dispose?(): Promise<unknown[]>
-}
-
-interface TransformersEnv {
-  allowLocalModels: boolean
-  useBrowserCache: boolean
-  backends?: {
-    onnx?: {
-      wasm?: { wasmPaths?: { mjs: string; wasm: string } }
-      versions?: { web?: string }
-    }
-  }
-}
-
-/** transformers.js points its WASM binary at the non-JSEP factory on jsdelivr,
-    which the full onnxruntime bundle (vite alias) cannot dispatch int4 kernels
-    against. Route it to the JSEP factory on the same CDN, before any wasm session. */
-function useJsepWasm(env: TransformersEnv): void {
-  const onnx = env.backends?.onnx
-  const version = onnx?.versions?.web
-  if (!version || !onnx?.wasm) return
-  const prefix = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${version}/dist/`
-  onnx.wasm.wasmPaths = {
-    mjs: `${prefix}ort-wasm-simd-threaded.jsep.mjs`,
-    wasm: `${prefix}ort-wasm-simd-threaded.jsep.wasm`,
-  }
 }
 
 interface RouterModule {
