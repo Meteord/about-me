@@ -63,9 +63,9 @@ Michael's blog on this site. Articles live under the Blog section.
 
 ## Chat with my website (2026-09-20)
 
-This page has no backend: everything runs on-device in the visitor's browser via transformers.js. Mini-Michi, the chat assistant, retrieves the most relevant tools before every reply and only sends those schemas to the language model.
+This page has no backend: everything runs on-device in the visitor's browser via transformers.js. Mini-Michi, the chat assistant, retrieves the most relevant content sources before every reply and injects only those into the language model's context, while applying theme changes directly.
 
-The article also evaluates how well the whole agent chain works: a section renders the results of a real end-to-end run of the on-device chain (retrieval → tool selection → language model → tool calls → final answer) across the retrieval modes, including per-fixture scores and runtime-trace results. The numbers come from the committed eval artifact, regenerated locally with \`npm run eval:chain\`.
+The article also evaluates how well retrieval and direct actions work across the retrieval modes: a section renders the results of a real run of the on-device retriever, context-budget injection, and theme-action step (hit@K, injection cover, action pass, and average latency per query), including per-fixture outcomes and runtime-trace checks. The numbers come from the committed eval artifact, regenerated locally with \`npm run eval:chain\`.
 
 ### Models
 

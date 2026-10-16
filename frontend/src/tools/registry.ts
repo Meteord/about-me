@@ -263,7 +263,15 @@ export function getSourceDocs(): SourceDoc[] {
 }
 
 export function filterSources(names: string[]): SourceDef[] {
-  return SOURCE_DEFS.filter((def) => names.includes(def.name))
+  const seen = new Set<string>()
+  const defs: SourceDef[] = []
+  for (const name of names) {
+    if (seen.has(name)) continue
+    seen.add(name)
+    const def = SOURCE_DEFS.find((entry) => entry.name === name)
+    if (def) defs.push(def)
+  }
+  return defs
 }
 
 export function sourceChars(defs: SourceDef[]): number {
@@ -297,21 +305,33 @@ export async function buildContextText(
   names: string[],
 ): Promise<{ names: string[]; text: string }> {
   const defs = filterSources(names).filter((def) => def.kind === 'content')
+  const blocks = await Promise.all(
+    defs.map(async (def) => ({
+      name: def.name,
+      block: `[${def.name}]\n${(await getSourceContent(def.name)).trim()}`,
+    })),
+  )
   const chunks: string[] = []
   const used: string[] = []
+  const oversized: { name: string; block: string }[] = []
   let budget = MAX_INJECT_CHARS
-  for (const def of defs) {
-    const content = (await getSourceContent(def.name)).trim()
-    const block = `[${def.name}]\n${content}`
-    if (block.length <= budget) {
-      chunks.push(block)
-      budget -= block.length
-      used.push(def.name)
-    } else if (budget > 0) {
-      chunks.push(block.slice(0, budget))
-      budget = 0
-      used.push(def.name)
+  for (const item of blocks) {
+    const sep = chunks.length > 0 ? 2 : 0
+    if (item.block.length + sep <= budget) {
+      chunks.push(item.block)
+      budget -= item.block.length + sep
+      used.push(item.name)
+    } else {
+      oversized.push(item)
     }
+  }
+  for (const item of oversized) {
+    const sep = chunks.length > 0 ? 2 : 0
+    const minUseful = item.name.length + 3 + 64
+    if (budget - sep < minUseful) break
+    chunks.push(item.block.slice(0, budget - sep))
+    budget = 0
+    used.push(item.name)
   }
   return { names: used, text: chunks.join('\n\n') }
 }

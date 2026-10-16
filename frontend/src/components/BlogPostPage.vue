@@ -4,7 +4,7 @@ import { homeHref } from '../composables/useHashRoute'
 import { formatBlogDate } from '../composables/useBlogDate'
 import { siteData, type TechModel } from '../data/siteData'
 import { useBlogAnimation } from '../composables/useBlogAnimation'
-import { evalResults, type ModeAggregate } from '../data/evalResults'
+import { evalResults, formatLatency, type ModeAggregate } from '../data/evalResults'
 import EvalComparison from './EvalComparison.vue'
 
 const pct = (value: number): string => `${Math.round(value * 100)}%`
@@ -34,10 +34,15 @@ const evalAggregate = computed(() => {
   if (!modes.length) return null
   const mean = (key: keyof ModeAggregate): number =>
     modes.reduce((acc, mode) => acc + (mode[key] as number), 0) / modes.length
+  const latencies = modes.map((mode) => mode.meanLatencyMs)
+  const minLatency = formatLatency(Math.min(...latencies))
+  const maxLatency = formatLatency(Math.max(...latencies))
   return {
-    factRecall: mean('factRecall'),
-    faithfulness: mean('faithfulness'),
-    chainPassRate: mean('chainPassRate'),
+    retrievalHitRate: mean('retrievalHitRate'),
+    injectionCoverRate: mean('injectionCoverRate'),
+    actionPassRate: mean('actionPassRate'),
+    passRate: mean('passRate'),
+    latencyRange: minLatency === maxLatency ? minLatency : `${minLatency}–${maxLatency}`,
   }
 })
 
@@ -244,31 +249,29 @@ onBeforeUnmount(() => {
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
       <h3 class="blog-post__eval-question" data-anim="card">
-        How well does the whole chain actually work?
+        How well do retrieval and actions actually work?
       </h3>
       <div class="eval-results" data-anim="card">
         <template v-if="evalResults.fixtures.total > 0">
           <p class="eval-results__meta">
-            The numbers below come from a real run of the whole on-device chain — retrieval →
-            content injection (or a direct theme action) → {{ evalResults.config.chatModel }} →
-            final answer — scored by a deterministic judge.
+            The numbers below come from a real run of the on-device retrieval and action step —
+            ranking candidate sources, injecting the top matches into the context budget, or firing
+            a theme change directly.
           </p>
           <p class="eval-results__meta">
             Generated
             <time :datetime="evalResults.generatedAt">{{
               formatGeneratedAt(evalResults.generatedAt)
             }}</time>
-            · {{ evalResults.config.device }} · {{ evalResults.config.dtype }} ·
-            {{ evalResults.config.sampling ? 'sampling' : 'greedy' }} · top-{{
-              evalResults.config.topK
-            }}
-            · ≤ {{ evalResults.config.maxInjectChars }} chars injected.
+            · {{ evalResults.config.device }} · top-{{ evalResults.config.topK }} · ≤
+            {{ evalResults.config.maxInjectChars }} chars injected.
           </p>
           <p class="eval-results__legend">
-            hit@5 — the right source is in the top 5 · injection cover — that source actually makes
-            it into the context · fact recall — the answer keeps the retrieved facts · faithfulness
-            — every sentence stays grounded in them · action pass — theme changes fire the right
-            action · chain pass — retrieval, injection/action and answer together.
+            hit@{{ evalResults.config.topK }} — an expected source or action lands in the top
+            {{ evalResults.config.topK }} · injection cover — the expected content source fits into
+            the injected context budget · action pass — theme requests fire the expected theme
+            without misfiring on normal questions · avg time — mean retrieval and action decision
+            time per query.
           </p>
 
           <EvalComparison :results="evalResults" />
@@ -276,12 +279,16 @@ onBeforeUnmount(() => {
           <aside class="eval-takeaway">
             <h4 class="eval-takeaway__title">What this tells us</h4>
             <p class="eval-takeaway__text" v-if="evalAggregate">
-              Retrieval reliably finds the right source and the retrieved content is injected into
-              the context. The 350M model reads from it and keeps the facts ({{
-                pct(evalAggregate.factRecall)
-              }}), stays grounded ({{ pct(evalAggregate.faithfulness) }} faithful), and
-              {{ pct(evalAggregate.chainPassRate) }} of runs pass end to end — theme changes are
-              applied directly by the retriever, no model call required.
+              Retrieval finds the expected source ({{ pct(evalAggregate.retrievalHitRate) }} hit@{{
+                evalResults.config.topK
+              }}), fits it into the context budget ({{
+                pct(evalAggregate.injectionCoverRate)
+              }}
+              injection cover), and triggers direct theme changes ({{
+                pct(evalAggregate.actionPassRate)
+              }}
+              action pass) in {{ evalAggregate.latencyRange }} per query —
+              {{ pct(evalAggregate.passRate) }} of runs pass overall.
             </p>
           </aside>
 
@@ -304,10 +311,6 @@ onBeforeUnmount(() => {
                 <dd>{{ pct(evalResults.traces.actionValidRate) }}</dd>
               </div>
               <div>
-                <dt>grounded</dt>
-                <dd>{{ pct(evalResults.traces.groundedRate) }}</dd>
-              </div>
-              <div>
                 <dt>pass</dt>
                 <dd>{{ pct(evalResults.traces.passRate) }}</dd>
               </div>
@@ -315,15 +318,15 @@ onBeforeUnmount(() => {
           </div>
 
           <p class="eval-results__footnote">
-            Nothing here is simulated — every number comes from a real run of the on-device chain
-            (retrieval → {{ evalResults.config.chatModel }} → answer). To refresh it, run
-            <code>npm run eval:chain</code> from <code>frontend/</code>.
+            Nothing here is simulated — every number comes from a real run of the retriever, context
+            budget, and theme-action logic. To refresh it, run <code>npm run eval:chain</code> from
+            <code>frontend/</code>.
           </p>
         </template>
         <p v-else class="eval-results__empty">
           No evaluation results committed yet. Run <code>npm run eval:chain</code> from
-          <code>frontend/</code> to measure the whole on-device chain — retrieval → content
-          injection → final answer — and this section will render the numbers.
+          <code>frontend/</code> to measure retrieval, context injection, and theme actions, and
+          this section will render the numbers.
         </p>
       </div>
 

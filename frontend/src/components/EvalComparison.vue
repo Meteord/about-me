@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { CaseResult, EvalResults, ModeAggregate } from '../data/evalResults'
+import {
+  formatLatency,
+  type CaseResult,
+  type EvalResults,
+  type ModeAggregate,
+} from '../data/evalResults'
 
-type MetricKey =
-  | 'retrievalHitRate'
-  | 'injectionCoverRate'
-  | 'factRecall'
-  | 'faithfulness'
-  | 'actionPassRate'
-  | 'chainPassRate'
+type MetricKey = 'retrievalHitRate' | 'injectionCoverRate' | 'actionPassRate'
 
 interface EvalMetric {
   key: MetricKey
@@ -26,6 +25,7 @@ interface CompareBar {
 
 interface SplitBars {
   n: number
+  meanLatencyMs: number
   bars: CompareBar[]
 }
 
@@ -48,14 +48,13 @@ const props = defineProps<{ results: EvalResults }>()
 
 const pct = (value: number): string => `${Math.round(value * 100)}%`
 const barClip = (value: number): string => `inset(0 ${100 - Math.round(value * 100)}% 0 0)`
-const formatLatency = (ms: number): string =>
-  ms >= 1000 ? `${(ms / 1000).toFixed(0)}s` : `${Math.round(ms)}ms`
 const caseReason = (entry: CaseResult): string => {
+  if (entry.error) return 'runtime error'
   if (!entry.retrievalPass) return 'retrieval missed'
-  if (entry.appliedTheme) return 'action misfired'
-  if (!entry.injectionPass) return 'expected source not injected'
-  if (!entry.answerPass) return 'answer drifted'
-  return 'chain failed'
+  if (!entry.actionPass) {
+    return entry.appliedTheme ? 'action misfired' : 'expected action missed'
+  }
+  return 'expected source not injected'
 }
 
 const EVAL_METRICS: EvalMetric[] = [
@@ -65,13 +64,10 @@ const EVAL_METRICS: EvalMetric[] = [
     color: 'eval-metric--amber',
   },
   { key: 'injectionCoverRate', label: 'injection cover', color: 'eval-metric--orange' },
-  { key: 'factRecall', label: 'fact recall', color: 'eval-metric--amber' },
-  { key: 'faithfulness', label: 'faithfulness', color: 'eval-metric--orange' },
-  { key: 'actionPassRate', label: 'action pass', color: 'eval-metric--amber' },
-  { key: 'chainPassRate', label: 'chain pass', color: 'eval-metric--orange' },
+  { key: 'actionPassRate', label: 'action pass', color: 'eval-metric--pink' },
 ]
 
-const activeMetrics = ref<MetricKey[]>(['factRecall', 'faithfulness'])
+const activeMetrics = ref<MetricKey[]>(['retrievalHitRate', 'injectionCoverRate'])
 
 const toggleMetric = (key: MetricKey): void => {
   if (activeMetrics.value.includes(key)) {
@@ -84,6 +80,7 @@ const toggleMetric = (key: MetricKey): void => {
 
 const splitBars = (aggregate: ModeAggregate | undefined): SplitBars => ({
   n: aggregate?.n ?? 0,
+  meanLatencyMs: aggregate?.meanLatencyMs ?? 0,
   bars: EVAL_METRICS.filter((m) => activeMetrics.value.includes(m.key)).map((m) => ({
     key: m.key,
     label: m.label,
@@ -96,7 +93,7 @@ const splitBars = (aggregate: ModeAggregate | undefined): SplitBars => ({
 const compareRows = computed<CompareRow[]>(() =>
   props.results.modes.map((mode) => ({
     mode: mode.mode,
-    latencyMs: mode.meanTotalLatencyMs,
+    latencyMs: mode.meanLatencyMs,
     test: splitBars(mode.splits?.test),
     train: splitBars(mode.splits?.train),
   })),
@@ -133,11 +130,13 @@ const failureSummary = computed(() => {
   const cases = props.results.cases
   if (!cases.length) return ''
   const total = cases.length
-  const passed = cases.filter((entry) => entry.chainPass).length
+  const passed = cases.filter((entry) => entry.pass).length
   const failed = total - passed
+  const testFailed = cases.filter((entry) => entry.split === 'test' && !entry.pass).length
+  const trainFailed = failed - testFailed
   const tally = new Map<string, number>()
   for (const entry of cases) {
-    if (entry.chainPass) continue
+    if (entry.pass) continue
     const reason = caseReason(entry)
     tally.set(reason, (tally.get(reason) ?? 0) + 1)
   }
@@ -145,8 +144,9 @@ const failureSummary = computed(() => {
     .sort((a, b) => b[1] - a[1])
     .map(([reason, count]) => `${reason} ${count}`)
     .join(' · ')
+  const splitNote = failed > 0 ? ` (${testFailed} test · ${trainFailed} train)` : ''
   return reasonsText
-    ? `${total} runs — ${passed} pass · ${failed} fail. Failures: ${reasonsText}.`
+    ? `${total} runs — ${passed} pass · ${failed} fail${splitNote}. Failures: ${reasonsText}.`
     : `${total} runs — ${passed} pass · ${failed} fail.`
 })
 </script>
@@ -164,26 +164,35 @@ const failureSummary = computed(() => {
         :key="metric.key"
         type="button"
         class="pixel-chip eval-compare__chip"
-        :class="{ 'eval-compare__chip--active': activeMetrics.includes(metric.key) }"
+        :class="[
+          metric.color,
+          { 'eval-compare__chip--active': activeMetrics.includes(metric.key) },
+        ]"
         :aria-pressed="activeMetrics.includes(metric.key)"
         @click="toggleMetric(metric.key)"
       >
+        <span class="eval-compare__swatch" aria-hidden="true"></span>
         {{ metric.label }}
       </button>
     </div>
     <p class="eval-compare__note">
-      These chips switch the chart metrics only — the per-fixture rows below always show fact recall
-      + faithfulness.
+      These chips switch the percentage metrics on the chart — average time taken per query is shown
+      alongside each mode and split.
     </p>
 
     <div class="eval-chart">
       <div v-for="row in compareRows" :key="row.mode" class="eval-chart__row">
         <h4 class="eval-chart__mode">
           {{ row.mode }}
-          <span class="eval-chart__mode-latency">latency {{ formatLatency(row.latencyMs) }}</span>
+          <span class="eval-chart__mode-latency">avg time {{ formatLatency(row.latencyMs) }}</span>
         </h4>
         <div class="eval-chart__splits">
-          <p class="eval-chart__split-label">test — the pass/fail gate ({{ row.test.n }} runs)</p>
+          <p class="eval-chart__split-label">
+            <span>test — the pass/fail gate ({{ row.test.n }} runs)</span>
+            <span class="eval-chart__split-latency">{{
+              formatLatency(row.test.meanLatencyMs)
+            }}</span>
+          </p>
           <div class="eval-chart__bars">
             <div
               v-for="bar in row.test.bars"
@@ -192,14 +201,17 @@ const failureSummary = computed(() => {
               :class="bar.color"
             >
               <span class="eval-chart__metric-label">{{ bar.label }}</span>
-              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+              <span class="tool-result__bar eval-chart__track" aria-hidden="true">
                 <i :style="{ clipPath: barClip(bar.value) }"></i>
               </span>
               <span class="eval-chart__value">{{ bar.pct }}</span>
             </div>
           </div>
           <p class="eval-chart__split-label eval-chart__split-label--train">
-            train — tuning reference, not the gate ({{ row.train.n }} runs)
+            <span>train — tuning reference, not the gate ({{ row.train.n }} runs)</span>
+            <span class="eval-chart__split-latency">{{
+              formatLatency(row.train.meanLatencyMs)
+            }}</span>
           </p>
           <div class="eval-chart__bars eval-chart__bars--train">
             <div
@@ -209,7 +221,7 @@ const failureSummary = computed(() => {
               :class="bar.color"
             >
               <span class="eval-chart__metric-label">{{ bar.label }}</span>
-              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+              <span class="tool-result__bar eval-chart__track" aria-hidden="true">
                 <i :style="{ clipPath: barClip(bar.value) }"></i>
               </span>
               <span class="eval-chart__value">{{ bar.pct }}</span>
@@ -234,39 +246,24 @@ const failureSummary = computed(() => {
             <span class="eval-case__split" :class="`eval-case__split--${entry.split}`">{{
               entry.split
             }}</span>
+            <span class="eval-case__latency">{{ formatLatency(entry.latencyMs) }}</span>
             <span
               class="eval-case__marker"
-              :class="entry.chainPass ? 'eval-case__marker--pass' : 'eval-case__marker--fail'"
-              >{{ entry.chainPass ? 'PASS' : 'FAIL' }}</span
+              :class="entry.pass ? 'eval-case__marker--pass' : 'eval-case__marker--fail'"
+              >{{ entry.pass ? 'PASS' : 'FAIL' }}</span
             >
           </div>
           <p class="eval-case__meta">
-            <template v-if="entry.effectiveMode !== entry.mode">
-              → {{ entry.effectiveMode }}
+            <template v-if="entry.effectiveMode !== entry.mode"
+              >→ {{ entry.effectiveMode }} ·
             </template>
-            <template v-if="entry.appliedTheme"> · action: {{ entry.appliedTheme }}</template>
+            <template v-if="entry.appliedTheme">action: {{ entry.appliedTheme }}</template>
             <template v-else>
-              · injected:
+              injected:
               {{ entry.injectedNames.length ? entry.injectedNames.join(', ') : 'none' }}
             </template>
           </p>
-          <p v-if="!entry.chainPass" class="eval-case__reason">{{ caseReason(entry) }}</p>
-          <div class="eval-case__bars">
-            <div class="eval-bar eval-metric--amber">
-              <span class="eval-bar__label">fact recall</span>
-              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
-                <i :style="{ clipPath: barClip(entry.score.factRecall) }"></i>
-              </span>
-              <span class="eval-bar__value">{{ pct(entry.score.factRecall) }}</span>
-            </div>
-            <div class="eval-bar eval-metric--orange">
-              <span class="eval-bar__label">faithfulness</span>
-              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
-                <i :style="{ clipPath: barClip(entry.score.faithfulness) }"></i>
-              </span>
-              <span class="eval-bar__value">{{ pct(entry.score.faithfulness) }}</span>
-            </div>
-          </div>
+          <p v-if="!entry.pass" class="eval-case__reason">{{ caseReason(entry) }}</p>
         </div>
       </li>
     </ol>

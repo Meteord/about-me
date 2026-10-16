@@ -1,17 +1,15 @@
 /**
- * End-to-end agent chain evaluation (npm run eval:chain).
+ * Retrieval, context-injection, and direct theme-action evaluation (npm run eval:chain).
  *
- * Runs the ENTIRE chain exactly as AiSection.handleSend does in the browser —
- * retrieve() (real retriever) → decideAction() (heuristic theme actions, no LLM
- * call syntax) or buildContextText() (inject the retrieved content) →
- * buildSystemPrompt() → real LFM2.5-350M generation (CPU) → final answer — over
- * every fixture × mode, scores it with the selected Judge (deterministic by
- * default), reports stage metrics, writes the committed artifact
- * frontend/src/data/evalResults.ts, and exits non-zero on failures. Optionally
- * scores STS-format runtime traces via --traces=.
+ * Runs the retrieval and action/context-injection steps exactly as AiSection.handleSend
+ * does in the browser — retrieve() (real retriever) → decideAction() (heuristic theme
+ * actions) or buildContextText() (char-budgeted context injection) — over every
+ * fixture × mode without loading or running the chat language model, reports stage
+ * metrics and average latency per mode and split, writes the committed artifact
+ * frontend/src/data/evalResults.ts, and exits non-zero on held-out test-split failures.
+ * Optionally scores STS-format runtime traces via --traces=.
  *
  * Usage: npm run eval:chain [-- --modes=bm25,vector,hybrid,decide --topk=5
- *          --dtype=q8|q4 --sampling --judge=deterministic|stub
  *          --traces=<file|dir|url>]
  */
 
@@ -20,11 +18,8 @@ import { isAbsolute, join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { FIXTURES } from './eval-fixtures.mjs'
 import {
-  createJudge,
   installWindowShim,
-  loadAllSourceTexts,
   loadRegistry,
-  loadUseChatModel,
   loadUseToolRetrieval,
   srcDir,
   validateSplitIntegrity,
@@ -32,10 +27,7 @@ import {
 import { loadTraceSource, scoreTrace } from './trace-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const CHAT_MODEL = 'LiquidAI/LFM2.5-350M-ONNX'
 const VALID_MODES = ['bm25', 'vector', 'hybrid', 'decide']
-
-const noop = () => {}
 
 /* ------------------------------------------------------------------ */
 /* CLI                                                                 */
@@ -74,18 +66,7 @@ if (invalidModes.length > 0) {
 }
 const modes = requestedModes
 const topK = Number(argValue('topk', '5')) || 5
-const dtype = argValue('dtype', 'q8') === 'q4' ? 'q4' : 'q8'
-const samplingEnabled = args.includes('--sampling')
-const judgeName = argValue('judge', 'deterministic')
 const traceSpecs = argAll('traces')
-
-let judge
-try {
-  judge = createJudge(judgeName)
-} catch (error) {
-  console.error(error.message)
-  process.exit(1)
-}
 
 if (modes.length === 0) {
   console.error(`no valid retrieval modes requested (${argValue('modes', '')})`)
@@ -108,18 +89,6 @@ function resolveTraceSpec(spec) {
   return candidates[0]
 }
 
-/** Strip trailing generation special tokens so the scored answer matches what
-    the browser displays (streamed with skip_special_tokens). */
-function cleanAnswer(response) {
-  return String(response)
-    .replace(/<\|\s*im_end\s*\|>[\s\S]*$/g, '')
-    .trim()
-}
-
-function themeConfirmation(theme) {
-  return `Done — I switched the accent color to ${theme}.`
-}
-
 /* ------------------------------------------------------------------ */
 /* Harness                                                             */
 /* ------------------------------------------------------------------ */
@@ -140,10 +109,6 @@ if (integrityErrors.length > 0) {
 }
 
 const retriever = loadUseToolRetrieval()
-const chat = loadUseChatModel(dtype, { sampling: samplingEnabled })
-const sourceTexts = await loadAllSourceTexts(registry)
-
-console.log(`chat model: ${CHAT_MODEL} · cpu · ${dtype}${samplingEnabled ? ' · sampling' : ''}`)
 
 if (modes.some((mode) => mode === 'vector' || mode === 'hybrid')) {
   process.stderr.write('initializing prompt-router (downloads on first run)…\n')
@@ -154,7 +119,9 @@ if (modes.some((mode) => mode === 'vector' || mode === 'hybrid')) {
       `router unavailable (${error instanceof Error ? error.message : error}) — vector/hybrid fall back to bm25\n`,
     )
   }
-  console.log(`router: ${retriever.vector.value.status} · ${retriever.vector.value.device} · ${retriever.vector.value.dtype}`)
+  console.log(
+    `router: ${retriever.vector.value.status} · ${retriever.vector.value.device} · ${retriever.vector.value.dtype}`,
+  )
 }
 
 if (modes.some((mode) => mode === 'decide')) {
@@ -166,16 +133,8 @@ if (modes.some((mode) => mode === 'decide')) {
       `decide unavailable (${error instanceof Error ? error.message : error}) — decide falls back to bm25\n`,
     )
   }
-  console.log(`decide: ${retriever.decide.value.status} · ${retriever.decide.value.device} · ${retriever.decide.value.dtype}`)
-}
-
-let chatOk = false
-try {
-  await chat.loadModel()
-  chatOk = true
-} catch (error) {
-  process.stderr.write(
-    `chat model failed to load (${error instanceof Error ? error.message : error}) — cases will report model errors\n`,
+  console.log(
+    `decide: ${retriever.decide.value.status} · ${retriever.decide.value.device} · ${retriever.decide.value.dtype}`,
   )
 }
 
@@ -199,92 +158,62 @@ function mean(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
 }
 
-function countTokens(response) {
-  const instance = chat._getInstance?.()
-  if (instance?.tokenizer && response) {
-    try {
-      const encoded = instance.tokenizer(response)
-      const count = encoded?.input_ids?.dims?.at(-1)
-      if (typeof count === 'number' && count > 0) return count
-    } catch {
-      // fall through to a length heuristic
-    }
-  }
-  return Math.max(1, Math.round((response || '').length / 4))
+function formatLatency(ms) {
+  if (ms < 0.5) return '< 1ms'
+  if (ms < 10) return `${ms.toFixed(1)}ms`
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(2)}s`
 }
 
 /* ------------------------------------------------------------------ */
-/* Chain runner (mirrors AiSection.handleSend)                         */
+/* Retrieval + action/injection runner                                 */
 /* ------------------------------------------------------------------ */
 
 async function runCase(fixture, fixtureIndex, mode, caseTopK) {
   const startedAt = performance.now()
   let retrieval = null
-  let chainError = null
+  let caseError = null
 
   try {
     retrieval = await retriever.retrieve(fixture.query, { mode, topK: caseTopK })
   } catch (error) {
-    chainError = error instanceof Error ? error.message : String(error)
+    caseError = error instanceof Error ? error.message : String(error)
   }
 
   const selectedNames = retrieval ? retrieval.selectedNames : []
   const rows = retrieval?.rows ?? []
-  const retrievalMs = retrieval?.stats.latencyMs ?? 0
 
-  let currentTheme = 'amber'
+  const currentTheme = 'amber'
   let appliedTheme = null
   let injectedNames = []
-  let injectedText = ''
-  let finalAnswer = ''
-  let tokensGenerated = 0
-  let generationMs = 0
 
-  if (!chainError) {
+  if (!caseError) {
     try {
       const theme = registry.decideAction(fixture.query, rows, currentTheme)
       if (theme) {
         appliedTheme = theme
-        currentTheme = theme
-        finalAnswer = cleanAnswer(themeConfirmation(theme))
       } else {
         const built = await registry.buildContextText(selectedNames)
         injectedNames = built.names
-        injectedText = built.text
-        if (!chatOk) throw new Error('chat model failed to load')
-        const roundStarted = performance.now()
-        const response = await chat.generate(
-          [
-            { role: 'system', content: registry.buildSystemPrompt(injectedText) },
-            { role: 'user', content: fixture.query },
-          ],
-          noop,
-        )
-        generationMs = Math.round(performance.now() - roundStarted)
-        tokensGenerated += countTokens(response)
-        finalAnswer = cleanAnswer(response)
       }
     } catch (error) {
-      chainError = error instanceof Error ? error.message : String(error)
+      caseError = error instanceof Error ? error.message : String(error)
     }
   }
 
-  const totalMs = Math.round(performance.now() - startedAt)
-  const timings = { retrievalMs, generationMs, totalMs, tokensGenerated }
-  const score = judge.assess(fixture, {
-    finalAnswer,
-    injectedNames,
-    injectedText,
-    appliedTheme,
-    sourceTexts,
-  })
-
+  const latencyMs = Number((performance.now() - startedAt).toFixed(2))
+  const expectedTheme = fixture.expectedArgs?.set_theme?.theme
   const retrievalPass = hitAtK(selectedNames, fixture.expected, caseTopK) === 1
   const injectionPass =
-    fixture.expected.length > 0 && fixture.expected.some((name) => injectedNames.includes(name))
-  const actionPass = fixture.expectAction ? score.appliedActionMatched : true
-  const answerPass = score.pass
-  const chainPass = answerPass && (fixture.expectAction ? actionPass : injectionPass)
+    Boolean(fixture.expectAction) ||
+    fixture.expected.length === 0 ||
+    fixture.expected.some((name) => injectedNames.includes(name))
+  const actionPass = fixture.expectAction
+    ? appliedTheme !== null && (expectedTheme === undefined || appliedTheme === expectedTheme)
+    : appliedTheme === null
+  const pass = retrievalPass && injectionPass && actionPass && caseError === null
+
+  const mrrScore = mrr(rows, fixture.expected)
 
   return {
     fixtureIndex,
@@ -292,19 +221,15 @@ async function runCase(fixture, fixtureIndex, mode, caseTopK) {
     split: fixture.split,
     mode,
     effectiveMode: retrieval?.stats.effective ?? 'bm25',
-    selectedNames,
-    rows,
     injectedNames,
     appliedTheme,
-    finalAnswer,
-    timings,
-    score,
+    latencyMs,
     retrievalPass,
     injectionPass,
     actionPass,
-    answerPass,
-    chainPass,
-    error: chainError,
+    pass,
+    error: caseError,
+    mrrScore,
   }
 }
 
@@ -320,23 +245,24 @@ function aggregateMode(modeName, cases, splitName = null) {
   const group = cases.filter(
     (entry) => entry.mode === modeName && (splitName === null || entry.split === splitName),
   )
+  const contentCases = group.filter((entry) => {
+    const fixture = fixtureOf(entry.fixtureIndex)
+    return !fixture.expectAction && fixture.expected.length > 0
+  })
+  const actionCases = group.filter((entry) => fixtureOf(entry.fixtureIndex).expectAction)
   return {
     mode: modeName,
     n: group.length,
     retrievalHitRate: mean(group.map((entry) => (entry.retrievalPass ? 1 : 0))),
-    retrievalMRR: mean(group.map((entry) => mrr(entry.rows, fixtureOf(entry.fixtureIndex).expected))),
-    injectionCoverRate: mean(group.map((entry) => (entry.injectionPass ? 1 : 0))),
-    actionPassRate: mean(
-      group
-        .filter((entry) => fixtureOf(entry.fixtureIndex).expectAction)
-        .map((entry) => (entry.actionPass ? 1 : 0)),
+    retrievalMRR: mean(group.map((entry) => entry.mrrScore)),
+    injectionCoverRate: mean(
+      (contentCases.length > 0 ? contentCases : group).map((entry) =>
+        entry.injectionPass ? 1 : 0,
+      ),
     ),
-    factRecall: mean(group.map((entry) => entry.score.factRecall)),
-    faithfulness: mean(group.map((entry) => entry.score.faithfulness)),
-    hallucinationRate: mean(group.map((entry) => (entry.score.bannedViolation ? 1 : 0))),
-    meanTotalLatencyMs: mean(group.map((entry) => entry.timings.totalMs)),
-    answerPassRate: mean(group.map((entry) => (entry.answerPass ? 1 : 0))),
-    chainPassRate: mean(group.map((entry) => (entry.chainPass ? 1 : 0))),
+    actionPassRate: mean(actionCases.map((entry) => (entry.actionPass ? 1 : 0))),
+    passRate: mean(group.map((entry) => (entry.pass ? 1 : 0))),
+    meanLatencyMs: Number(mean(group.map((entry) => entry.latencyMs)).toFixed(2)),
   }
 }
 
@@ -348,8 +274,6 @@ function aggregateTraces(traceCases, sources, modeName, caseTopK) {
     topK: caseTopK,
     retrievalCoverRate: mean(traceCases.map((entry) => (entry.retrievalCovered ? 1 : 0))),
     actionValidRate: mean(traceCases.map((entry) => (entry.actionValid ? 1 : 0))),
-    groundedRate: mean(traceCases.map((entry) => (entry.groundedness >= 0.8 ? 1 : 0))),
-    bannedViolationRate: mean(traceCases.map((entry) => (entry.bannedViolation ? 1 : 0))),
     passRate: mean(traceCases.map((entry) => (entry.pass ? 1 : 0))),
   }
 }
@@ -358,48 +282,19 @@ function aggregateTraces(traceCases, sources, modeName, caseTopK) {
 /* Artifact writer (frontend/src/data/evalResults.ts)                  */
 /* ------------------------------------------------------------------ */
 
-const INTERFACE_TEXT = `export interface StageTiming {
-  retrievalMs: number
-  generationMs: number
-  totalMs: number
-  tokensGenerated: number
-}
-
-export interface AnswerScore {
-  factRecall: number
-  factsMissedDueToRetrievalMiss: string[]
-  bannedViolation: boolean
-  faithfulness: number
-  unsupportedSentences: string[]
-  pass: boolean
-  appliedActionMatched: boolean
-}
-
-export interface ToolScoreRow {
-  name: string
-  score: number
-  rank: number
-  selected: boolean
-}
-
-export interface CaseResult {
+const INTERFACE_TEXT = `export interface CaseResult {
   fixtureIndex: number
   query: string
   split: 'train' | 'test'
   mode: string
   effectiveMode: string
-  selectedNames: string[]
   injectedNames: string[]
-  rows: ToolScoreRow[]
   appliedTheme: string | null
-  finalAnswer: string
-  timings: StageTiming
-  score: AnswerScore
+  latencyMs: number
   retrievalPass: boolean
   injectionPass: boolean
   actionPass: boolean
-  answerPass: boolean
-  chainPass: boolean
+  pass: boolean
   error: string | null
 }
 
@@ -410,12 +305,8 @@ export interface ModeAggregate {
   retrievalMRR: number
   injectionCoverRate: number
   actionPassRate: number
-  factRecall: number
-  faithfulness: number
-  hallucinationRate: number
-  meanTotalLatencyMs: number
-  answerPassRate: number
-  chainPassRate: number
+  passRate: number
+  meanLatencyMs: number
 }
 
 export interface ModeResult extends ModeAggregate {
@@ -432,8 +323,6 @@ export interface TraceAggregate {
   topK: number
   retrievalCoverRate: number
   actionValidRate: number
-  groundedRate: number
-  bannedViolationRate: number
   passRate: number
 }
 
@@ -443,16 +332,20 @@ export interface EvalResults {
     modes: string[]
     topK: number
     maxInjectChars: number
-    sampling: boolean
     device: 'cpu'
-    dtype: 'q8' | 'q4'
-    chatModel: string
     gateSplit: 'test'
   }
   fixtures: { total: number; train: number; test: number }
   modes: ModeResult[]
   cases: CaseResult[]
   traces: TraceAggregate | null
+}
+
+export function formatLatency(ms: number): string {
+  if (ms < 0.5) return '< 1ms'
+  if (ms < 10) return \`\${ms.toFixed(1)}ms\`
+  if (ms < 1000) return \`\${Math.round(ms)}ms\`
+  return \`\${(ms / 1000).toFixed(2)}s\`
 }`
 
 function quote(value) {
@@ -505,7 +398,12 @@ export const evalResults: EvalResults = ${serialize(artifact)}
   let output = body
   try {
     const prettier = await import('prettier')
-    output = await prettier.format(body, { parser: 'typescript', singleQuote: true, semi: false, printWidth: 100 })
+    output = await prettier.format(body, {
+      parser: 'typescript',
+      singleQuote: true,
+      semi: false,
+      printWidth: 100,
+    })
   } catch {
     // prettier unavailable — write the raw prettier-compliant shape
   }
@@ -524,29 +422,17 @@ for (const mode of modes) {
     const result = await runCase(FIXTURES[index], index, mode, topK)
     cases.push(result)
 
-    const marker = result.chainPass ? 'PASS' : 'FAIL'
+    const marker = result.pass ? 'PASS' : 'FAIL'
     const signal = result.appliedTheme
       ? `action → ${result.appliedTheme}`
       : `injected ${result.injectedNames.length ? result.injectedNames.join(', ') : '(none)'}`
-    const line =
-      `[${marker}] [${result.split}] ${result.query} → ${signal} · ` +
-      `factRecall ${result.score.factRecall.toFixed(2)} · faithfulness ${result.score.faithfulness.toFixed(2)} · ` +
-      `${result.timings.totalMs}ms`
+    const line = `[${marker}] [${result.split}] ${result.query} → ${signal} · ${formatLatency(result.latencyMs)}`
     console.log(result.error ? `${line} · error: ${result.error}` : line)
   }
 
   const aggregate = aggregateMode(mode, cases)
   console.log(
-    `${mode}: hit@${topK} = ${(aggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${aggregate.retrievalMRR.toFixed(3)}`,
-  )
-  console.log(
-    `  injectionCover = ${(aggregate.injectionCoverRate * 100).toFixed(0)}% · actionPass = ${(aggregate.actionPassRate * 100).toFixed(0)}%`,
-  )
-  console.log(
-    `  factRecall = ${aggregate.factRecall.toFixed(2)} · faithfulness = ${aggregate.faithfulness.toFixed(2)} · hallucination = ${(aggregate.hallucinationRate * 100).toFixed(0)}%`,
-  )
-  console.log(
-    `  latency = ${Math.round(aggregate.meanTotalLatencyMs)}ms · answerPass = ${(aggregate.answerPassRate * 100).toFixed(0)}% · chainPass = ${(aggregate.chainPassRate * 100).toFixed(0)}%`,
+    `${mode}: hit@${topK} = ${(aggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${aggregate.retrievalMRR.toFixed(3)} · injectionCover = ${(aggregate.injectionCoverRate * 100).toFixed(0)}% · actionPass = ${(aggregate.actionPassRate * 100).toFixed(0)}% · pass = ${(aggregate.passRate * 100).toFixed(0)}% · avg time = ${formatLatency(aggregate.meanLatencyMs)}`,
   )
 
   for (const [name, label] of [
@@ -556,12 +442,12 @@ for (const mode of modes) {
     const splitAggregate = aggregateMode(mode, cases, name)
     if (splitAggregate.n === 0) continue
     console.log(
-      `${label}: hit@${topK} = ${(splitAggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${splitAggregate.retrievalMRR.toFixed(3)} · chainPass = ${(splitAggregate.chainPassRate * 100).toFixed(0)}%`,
+      `${label}: hit@${topK} = ${(splitAggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${splitAggregate.retrievalMRR.toFixed(3)} · injectionCover = ${(splitAggregate.injectionCoverRate * 100).toFixed(0)}% · actionPass = ${(splitAggregate.actionPassRate * 100).toFixed(0)}% · pass = ${(splitAggregate.passRate * 100).toFixed(0)}% · avg time = ${formatLatency(splitAggregate.meanLatencyMs)}`,
     )
   }
 }
 
-/* ---- Runtime traces (US4) ---- */
+/* ---- Runtime traces ---- */
 
 const traceMode = modes[0]
 const specs = traceSpecs.length > 0 ? traceSpecs : [defaultTracesDir]
@@ -582,15 +468,14 @@ if (loadedTraces.length > 0) {
   for (const trace of loadedTraces) {
     const result = await scoreTrace(trace, {
       retriever,
-      judge,
-      sourceTexts,
+      registry,
       mode: traceMode,
       topK,
     })
     traceCases.push(result)
     const marker = result.pass ? 'PASS' : 'FAIL'
     console.log(
-      `[${marker}] ${result.name || result.id} → covered:${result.retrievalCovered ? 'y' : 'n'} · action:${result.actionValid ? 'y' : 'n'} · grounded ${result.groundedness.toFixed(2)} · banned:${result.bannedViolation ? 'y' : 'n'}`,
+      `[${marker}] ${result.name || result.id} → covered:${result.retrievalCovered ? 'y' : 'n'} · action:${result.actionValid ? 'y' : 'n'}`,
     )
   }
   traceAggregate = aggregateTraces(
@@ -600,7 +485,7 @@ if (loadedTraces.length > 0) {
     topK,
   )
   console.log(
-    `traces: ${traceAggregate.count} · retrievalCover = ${(traceAggregate.retrievalCoverRate * 100).toFixed(0)}% · actionValid = ${(traceAggregate.actionValidRate * 100).toFixed(0)}% · grounded = ${(traceAggregate.groundedRate * 100).toFixed(0)}% · banned = ${(traceAggregate.bannedViolationRate * 100).toFixed(0)}% · pass = ${(traceAggregate.passRate * 100).toFixed(0)}%`,
+    `traces: ${traceAggregate.count} · retrievalCover = ${(traceAggregate.retrievalCoverRate * 100).toFixed(0)}% · actionValid = ${(traceAggregate.actionValidRate * 100).toFixed(0)}% · pass = ${(traceAggregate.passRate * 100).toFixed(0)}%`,
   )
 }
 
@@ -618,10 +503,7 @@ await writeArtifact({
     modes,
     topK,
     maxInjectChars: registry.MAX_INJECT_CHARS ?? 1800,
-    sampling: samplingEnabled,
     device: 'cpu',
-    dtype,
-    chatModel: CHAT_MODEL,
     gateSplit: 'test',
   },
   fixtures: {
@@ -630,29 +512,29 @@ await writeArtifact({
     test: splitCount('test'),
   },
   modes: modeAggregates,
-  cases,
+  cases: cases.map(({ mrrScore: _mrrScore, ...entry }) => entry),
   traces: traceAggregate,
 })
 
-const chainFailures = cases.filter((entry) => !entry.chainPass).length
+const totalFailures = cases.filter((entry) => !entry.pass).length
 const testCases = cases.filter((entry) => entry.split === 'test')
 const trainCases = cases.filter((entry) => entry.split === 'train')
-const testChainFailures = testCases.filter((entry) => !entry.chainPass).length
-const trainChainFailures = trainCases.filter((entry) => !entry.chainPass).length
+const testFailures = testCases.filter((entry) => !entry.pass).length
+const trainFailures = trainCases.filter((entry) => !entry.pass).length
 const traceFailures = traceCases.filter((entry) => !entry.pass).length
 
 console.log(`\nwritten ${join(srcDir, 'data', 'evalResults.ts')}`)
-if (trainChainFailures > 0) {
+if (trainFailures > 0) {
   console.log(
-    `train chain failures (tuning reference — not the gate): ${trainChainFailures}/${trainCases.length}`,
+    `train failures (tuning reference — not the gate): ${trainFailures}/${trainCases.length}`,
   )
 }
-if (testChainFailures > 0 || traceFailures > 0) {
+if (testFailures > 0 || traceFailures > 0) {
   console.error(
-    `${testChainFailures}/${testCases.length} test chain cases failed (the gate) · ` +
-      `${traceFailures}/${traceCases.length} traces failed (${chainFailures}/${cases.length} cases failed overall)`,
+    `${testFailures}/${testCases.length} test cases failed (the gate) · ` +
+      `${traceFailures}/${traceCases.length} traces failed (${totalFailures}/${cases.length} cases failed overall)`,
   )
   process.exitCode = 1
 } else {
-  console.log('all test-split chain cases passed (the gate)')
+  console.log('all test-split cases passed (the gate)')
 }

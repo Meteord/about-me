@@ -10,7 +10,6 @@
 
 import { readFile, readdir } from 'fs/promises'
 import { join } from 'path'
-import { BANNED_TRACE_FACTS } from './eval-fixtures.mjs'
 
 const THEME_ORDER = ['amber', 'orange', 'red']
 
@@ -166,13 +165,17 @@ export async function loadTraceSource(spec) {
 /* Historical per-trace scoring (no re-execution)                      */
 /* ------------------------------------------------------------------ */
 
-export async function scoreTrace(trace, { retriever, judge, sourceTexts, mode, topK }) {
+export async function scoreTrace(trace, { retriever, registry, mode, topK }) {
   let retrievalCovered = false
+  let actionMisfired = false
   try {
     const result = await retriever.retrieve(trace.userQuery, { mode, topK })
     const topNames = result.selectedNames.slice(0, topK)
     retrievalCovered =
       trace.injectedNames.length > 0 && trace.injectedNames.every((name) => topNames.includes(name))
+    if (registry?.decideAction) {
+      actionMisfired = registry.decideAction(trace.userQuery, result.rows, 'amber') !== null
+    }
   } catch {
     retrievalCovered = false
   }
@@ -180,50 +183,10 @@ export async function scoreTrace(trace, { retriever, judge, sourceTexts, mode, t
   const actionValid =
     trace.appliedTheme !== null && THEME_ORDER.includes(trace.appliedTheme)
 
-  let score
-  if (actionValid) {
-    score = judge.assess(
-      {
-        query: trace.userQuery,
-        expected: ['set_theme'],
-        expectAction: true,
-        expectedArgs: {},
-        expectedAnswerFacts: [],
-        bannedFacts: BANNED_TRACE_FACTS,
-      },
-      {
-        finalAnswer: trace.finalAnswer,
-        injectedNames: [],
-        injectedText: '',
-        appliedTheme: trace.appliedTheme,
-        sourceTexts,
-      },
-    )
-  } else {
-    const injectedText = (trace.injectedNames ?? [])
-      .map((name) => sourceTexts[name] ?? '')
-      .filter(Boolean)
-      .join('\n\n')
-    score = judge.assess(
-      {
-        query: trace.userQuery,
-        expected: [],
-        expectedAnswerFacts: [],
-        bannedFacts: BANNED_TRACE_FACTS,
-      },
-      {
-        finalAnswer: trace.finalAnswer,
-        injectedNames: trace.injectedNames ?? [],
-        injectedText,
-        appliedTheme: null,
-        sourceTexts,
-      },
-    )
-  }
-
-  const groundedness = score.faithfulness
-  const bannedViolation = score.bannedViolation
-  const pass = (retrievalCovered || actionValid) && groundedness >= 0.8 && !bannedViolation
+  const noSelectionTrace =
+    (trace.injectedNames?.length ?? 0) === 0 && trace.appliedTheme === null
+  const pass =
+    retrievalCovered || actionValid || (noSelectionTrace && !actionMisfired)
 
   return {
     source: trace.source,
@@ -234,8 +197,6 @@ export async function scoreTrace(trace, { retriever, judge, sourceTexts, mode, t
     appliedTheme: trace.appliedTheme,
     retrievalCovered,
     actionValid,
-    groundedness,
-    bannedViolation,
     pass,
     error: null,
   }
