@@ -247,7 +247,7 @@ onBeforeUnmount(() => {
         How well does the whole chain actually work?
       </h3>
       <div class="eval-results" data-anim="card">
-        <template v-if="evalResults.fixtures > 0">
+        <template v-if="evalResults.fixtures.total > 0">
           <p class="eval-results__meta">
             The numbers below come from a real run of the whole on-device chain — retrieval →
             content injection (or a direct theme action) → {{ evalResults.config.chatModel }} →

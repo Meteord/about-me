@@ -24,15 +24,15 @@ const {
 } = useToolRetrieval()
 const { state: layout } = useSiteLayout()
 
-const MODES: RetrievalMode[] = ['lexical', 'vector', 'hybrid', 'decide']
+const MODES: RetrievalMode[] = ['bm25', 'vector', 'hybrid', 'decide']
 const MODE_LABEL: Record<RetrievalMode, string> = {
-  lexical: 'LEX',
+  bm25: 'BM25',
   vector: 'VECTOR',
   hybrid: 'HYBRID',
   decide: 'DECIDE',
 }
 const MODE_MEANING: Record<RetrievalMode, string> = {
-  lexical: 'keyword match',
+  bm25: 'BM25 keyword match',
   vector: 'meaning match',
   hybrid: 'keyword + meaning',
   decide: 'classifies which source your question is about',
@@ -240,10 +240,10 @@ const themeActed = computed(() => {
           <details class="tool-selector__details">
             <summary>Under the hood — four retrieval strategies</summary>
             <p class="tool-selector__intro">
-              Keyword match (BM25 over the enriched source index), meaning match (an on-device
-              zero-shot prompt-router, LFM2.5-Encoder-350M), both fused via reciprocal rank fusion,
-              or DECIDE — a GLiNER2.5-Decide classifier that picks which content source a query is
-              about.
+              BM25 keyword match (pure BM25 over the enriched source index), meaning match (an
+              on-device zero-shot prompt-router, LFM2.5-Encoder-350M), both fused via reciprocal
+              rank fusion, or DECIDE — a GLiNER2.5-Decide classifier that picks which content source
+              a query is about.
             </p>
           </details>
 
@@ -334,7 +334,7 @@ const themeActed = computed(() => {
           </div>
 
           <p v-if="vector.status === 'error'" class="tool-selector__error">
-            Vector retriever failed to load — falling back to lexical scores.
+            Vector retriever failed to load — falling back to BM25 scores.
             <span v-if="vector.error" class="tool-selector__error-msg">{{ vector.error }}</span>
             <button type="button" class="tool-selector__retry" @click="loadVectorSafe">
               Retry
@@ -378,7 +378,7 @@ const themeActed = computed(() => {
           </div>
 
           <p v-if="mode === 'decide' && decide.status === 'error'" class="tool-selector__error">
-            Decide retriever failed to load — falling back to lexical scores.
+            Decide retriever failed to load — falling back to BM25 scores.
             <span v-if="decide.error" class="tool-selector__error-msg">{{ decide.error }}</span>
             <button type="button" class="tool-selector__retry" @click="loadDecideSafe">
               Retry

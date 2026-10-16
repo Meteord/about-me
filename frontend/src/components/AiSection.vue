@@ -79,7 +79,7 @@ const inputEl = ref<HTMLInputElement | null>(null)
 let nextId = 1
 
 const MODE_GLOSS: Record<RetrievalMode, string> = {
-  lexical: 'keyword match',
+  bm25: 'BM25 keyword match',
   vector: 'meaning match',
   hybrid: 'keyword + meaning',
   decide: 'classifies the source',

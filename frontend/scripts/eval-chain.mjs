@@ -10,7 +10,7 @@
  * frontend/src/data/evalResults.ts, and exits non-zero on failures. Optionally
  * scores STS-format runtime traces via --traces=.
  *
- * Usage: npm run eval:chain [-- --modes=lexical,vector,hybrid,decide --topk=5
+ * Usage: npm run eval:chain [-- --modes=bm25,vector,hybrid,decide --topk=5
  *          --dtype=q8|q4 --sampling --judge=deterministic|stub
  *          --traces=<file|dir|url>]
  */
@@ -27,12 +27,13 @@ import {
   loadUseChatModel,
   loadUseToolRetrieval,
   srcDir,
+  validateSplitIntegrity,
 } from './eval-lib.mjs'
 import { loadTraceSource, scoreTrace } from './trace-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CHAT_MODEL = 'LiquidAI/LFM2.5-350M-ONNX'
-const VALID_MODES = ['lexical', 'vector', 'hybrid', 'decide']
+const VALID_MODES = ['bm25', 'vector', 'hybrid', 'decide']
 
 const noop = () => {}
 
@@ -63,7 +64,15 @@ const argAll = (name) =>
     .filter((value) => value.startsWith(`--${name}=`))
     .map((value) => value.split('=').slice(1).join('='))
 
-const modes = argList('modes', VALID_MODES).filter((mode) => VALID_MODES.includes(mode))
+const requestedModes = argList('modes', VALID_MODES)
+const invalidModes = requestedModes.filter((mode) => !VALID_MODES.includes(mode))
+if (invalidModes.length > 0) {
+  console.error(
+    `no valid retrieval modes requested (${requestedModes.join(',')}) — valid modes: ${VALID_MODES.join(', ')}`,
+  )
+  process.exit(1)
+}
+const modes = requestedModes
 const topK = Number(argValue('topk', '5')) || 5
 const dtype = argValue('dtype', 'q8') === 'q4' ? 'q4' : 'q8'
 const samplingEnabled = args.includes('--sampling')
@@ -117,6 +126,19 @@ function themeConfirmation(theme) {
 
 installWindowShim()
 const registry = loadRegistry()
+
+/* Fail-fast split-integrity + corpus-hygiene gate (before any retrieval or
+   model download; data-model §1 V1–V7 + FR-006/SC-004). */
+const integrityErrors = validateSplitIntegrity({
+  fixtures: FIXTURES,
+  docs: registry.getSourceDocs(),
+})
+if (integrityErrors.length > 0) {
+  console.error('split integrity check failed:')
+  for (const error of integrityErrors) console.error(`  - ${error}`)
+  process.exit(1)
+}
+
 const retriever = loadUseToolRetrieval()
 const chat = loadUseChatModel(dtype, { sampling: samplingEnabled })
 const sourceTexts = await loadAllSourceTexts(registry)
@@ -129,7 +151,7 @@ if (modes.some((mode) => mode === 'vector' || mode === 'hybrid')) {
     await retriever.loadVector()
   } catch (error) {
     process.stderr.write(
-      `router unavailable (${error instanceof Error ? error.message : error}) — vector/hybrid fall back to lexical\n`,
+      `router unavailable (${error instanceof Error ? error.message : error}) — vector/hybrid fall back to bm25\n`,
     )
   }
   console.log(`router: ${retriever.vector.value.status} · ${retriever.vector.value.device} · ${retriever.vector.value.dtype}`)
@@ -141,7 +163,7 @@ if (modes.some((mode) => mode === 'decide')) {
     await retriever.loadDecide()
   } catch (error) {
     process.stderr.write(
-      `decide unavailable (${error instanceof Error ? error.message : error}) — decide falls back to lexical\n`,
+      `decide unavailable (${error instanceof Error ? error.message : error}) — decide falls back to bm25\n`,
     )
   }
   console.log(`decide: ${retriever.decide.value.status} · ${retriever.decide.value.device} · ${retriever.decide.value.dtype}`)
@@ -267,8 +289,9 @@ async function runCase(fixture, fixtureIndex, mode, caseTopK) {
   return {
     fixtureIndex,
     query: fixture.query,
+    split: fixture.split,
     mode,
-    effectiveMode: retrieval?.stats.effective ?? 'lexical',
+    effectiveMode: retrieval?.stats.effective ?? 'bm25',
     selectedNames,
     rows,
     injectedNames,
@@ -293,8 +316,10 @@ function fixtureOf(index) {
   return FIXTURES[index]
 }
 
-function aggregateMode(modeName, cases) {
-  const group = cases.filter((entry) => entry.mode === modeName)
+function aggregateMode(modeName, cases, splitName = null) {
+  const group = cases.filter(
+    (entry) => entry.mode === modeName && (splitName === null || entry.split === splitName),
+  )
   return {
     mode: modeName,
     n: group.length,
@@ -360,6 +385,7 @@ export interface ToolScoreRow {
 export interface CaseResult {
   fixtureIndex: number
   query: string
+  split: 'train' | 'test'
   mode: string
   effectiveMode: string
   selectedNames: string[]
@@ -392,6 +418,13 @@ export interface ModeAggregate {
   chainPassRate: number
 }
 
+export interface ModeResult extends ModeAggregate {
+  splits: {
+    test: ModeAggregate
+    train: ModeAggregate
+  }
+}
+
 export interface TraceAggregate {
   count: number
   sources: string[]
@@ -414,9 +447,10 @@ export interface EvalResults {
     device: 'cpu'
     dtype: 'q8' | 'q4'
     chatModel: string
+    gateSplit: 'test'
   }
-  fixtures: number
-  modes: ModeAggregate[]
+  fixtures: { total: number; train: number; test: number }
+  modes: ModeResult[]
   cases: CaseResult[]
   traces: TraceAggregate | null
 }`
@@ -495,7 +529,7 @@ for (const mode of modes) {
       ? `action → ${result.appliedTheme}`
       : `injected ${result.injectedNames.length ? result.injectedNames.join(', ') : '(none)'}`
     const line =
-      `[${marker}] ${result.query} → ${signal} · ` +
+      `[${marker}] [${result.split}] ${result.query} → ${signal} · ` +
       `factRecall ${result.score.factRecall.toFixed(2)} · faithfulness ${result.score.faithfulness.toFixed(2)} · ` +
       `${result.timings.totalMs}ms`
     console.log(result.error ? `${line} · error: ${result.error}` : line)
@@ -514,6 +548,17 @@ for (const mode of modes) {
   console.log(
     `  latency = ${Math.round(aggregate.meanTotalLatencyMs)}ms · answerPass = ${(aggregate.answerPassRate * 100).toFixed(0)}% · chainPass = ${(aggregate.chainPassRate * 100).toFixed(0)}%`,
   )
+
+  for (const [name, label] of [
+    ['test', 'test'],
+    ['train', 'train (tuning reference — not the gate)'],
+  ]) {
+    const splitAggregate = aggregateMode(mode, cases, name)
+    if (splitAggregate.n === 0) continue
+    console.log(
+      `${label}: hit@${topK} = ${(splitAggregate.retrievalHitRate * 100).toFixed(0)}% · MRR = ${splitAggregate.retrievalMRR.toFixed(3)} · chainPass = ${(splitAggregate.chainPassRate * 100).toFixed(0)}%`,
+    )
+  }
 }
 
 /* ---- Runtime traces (US4) ---- */
@@ -559,7 +604,14 @@ if (loadedTraces.length > 0) {
   )
 }
 
-const modeAggregates = modes.map((modeName) => aggregateMode(modeName, cases))
+const modeAggregates = modes.map((modeName) => ({
+  ...aggregateMode(modeName, cases),
+  splits: {
+    test: aggregateMode(modeName, cases, 'test'),
+    train: aggregateMode(modeName, cases, 'train'),
+  },
+}))
+const splitCount = (split) => FIXTURES.filter((fixture) => fixture.split === split).length
 await writeArtifact({
   generatedAt: new Date().toISOString(),
   config: {
@@ -570,22 +622,37 @@ await writeArtifact({
     device: 'cpu',
     dtype,
     chatModel: CHAT_MODEL,
+    gateSplit: 'test',
   },
-  fixtures: FIXTURES.length,
+  fixtures: {
+    total: FIXTURES.length,
+    train: splitCount('train'),
+    test: splitCount('test'),
+  },
   modes: modeAggregates,
   cases,
   traces: traceAggregate,
 })
 
 const chainFailures = cases.filter((entry) => !entry.chainPass).length
+const testCases = cases.filter((entry) => entry.split === 'test')
+const trainCases = cases.filter((entry) => entry.split === 'train')
+const testChainFailures = testCases.filter((entry) => !entry.chainPass).length
+const trainChainFailures = trainCases.filter((entry) => !entry.chainPass).length
 const traceFailures = traceCases.filter((entry) => !entry.pass).length
 
 console.log(`\nwritten ${join(srcDir, 'data', 'evalResults.ts')}`)
-if (chainFailures > 0 || traceFailures > 0) {
+if (trainChainFailures > 0) {
+  console.log(
+    `train chain failures (tuning reference — not the gate): ${trainChainFailures}/${trainCases.length}`,
+  )
+}
+if (testChainFailures > 0 || traceFailures > 0) {
   console.error(
-    `${chainFailures}/${cases.length} chain cases failed · ${traceFailures}/${traceCases.length} traces failed`,
+    `${testChainFailures}/${testCases.length} test chain cases failed (the gate) · ` +
+      `${traceFailures}/${traceCases.length} traces failed (${chainFailures}/${cases.length} cases failed overall)`,
   )
   process.exitCode = 1
 } else {
-  console.log('all chain cases passed')
+  console.log('all test-split chain cases passed (the gate)')
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { CaseResult, EvalResults } from '../data/evalResults'
+import type { CaseResult, EvalResults, ModeAggregate } from '../data/evalResults'
 
 type MetricKey =
   | 'retrievalHitRate'
@@ -24,10 +24,18 @@ interface CompareBar {
   color: string
 }
 
+interface SplitBars {
+  n: number
+  bars: CompareBar[]
+}
+
 interface CompareRow {
   mode: string
   latencyMs: number
-  bars: CompareBar[]
+  /** Held-out split — the pass/fail gate; rendered as the headline. */
+  test: SplitBars
+  /** Tuning reference — not the gate; rendered below to expose the gap. */
+  train: SplitBars
 }
 
 interface QuestionGroup {
@@ -74,17 +82,23 @@ const toggleMetric = (key: MetricKey): void => {
   }
 }
 
+const splitBars = (aggregate: ModeAggregate | undefined): SplitBars => ({
+  n: aggregate?.n ?? 0,
+  bars: EVAL_METRICS.filter((m) => activeMetrics.value.includes(m.key)).map((m) => ({
+    key: m.key,
+    label: m.label,
+    color: m.color,
+    value: aggregate?.[m.key] ?? 0,
+    pct: pct(aggregate?.[m.key] ?? 0),
+  })),
+})
+
 const compareRows = computed<CompareRow[]>(() =>
   props.results.modes.map((mode) => ({
     mode: mode.mode,
     latencyMs: mode.meanTotalLatencyMs,
-    bars: EVAL_METRICS.filter((m) => activeMetrics.value.includes(m.key)).map((m) => ({
-      key: m.key,
-      label: m.label,
-      color: m.color,
-      value: mode[m.key],
-      pct: pct(mode[m.key]),
-    })),
+    test: splitBars(mode.splits?.test),
+    train: splitBars(mode.splits?.train),
   })),
 )
 
@@ -138,8 +152,12 @@ const failureSummary = computed(() => {
 </script>
 
 <template>
-  <div v-if="results.fixtures > 0 && results.modes.length > 0" class="eval-compare">
+  <div v-if="results.fixtures.total > 0 && results.modes.length > 0" class="eval-compare">
     <h4 class="eval-cases__title">Comparison</h4>
+    <p class="eval-compare__note">
+      Pass/fail gate: the {{ results.config.gateSplit }} split ({{ results.fixtures.test }} of
+      {{ results.fixtures.total }} fixtures) — train rows are the tuning reference, not the gate.
+    </p>
     <div class="eval-compare__chips" role="group" aria-label="Chart metrics">
       <button
         v-for="metric in EVAL_METRICS"
@@ -164,13 +182,38 @@ const failureSummary = computed(() => {
           {{ row.mode }}
           <span class="eval-chart__mode-latency">latency {{ formatLatency(row.latencyMs) }}</span>
         </h4>
-        <div class="eval-chart__bars">
-          <div v-for="bar in row.bars" :key="bar.key" class="eval-chart__bar" :class="bar.color">
-            <span class="eval-chart__metric-label">{{ bar.label }}</span>
-            <span class="tool-result__bar eval-bar__track" aria-hidden="true">
-              <i :style="{ clipPath: barClip(bar.value) }"></i>
-            </span>
-            <span class="eval-chart__value">{{ bar.pct }}</span>
+        <div class="eval-chart__splits">
+          <p class="eval-chart__split-label">test — the pass/fail gate ({{ row.test.n }} runs)</p>
+          <div class="eval-chart__bars">
+            <div
+              v-for="bar in row.test.bars"
+              :key="bar.key"
+              class="eval-chart__bar"
+              :class="bar.color"
+            >
+              <span class="eval-chart__metric-label">{{ bar.label }}</span>
+              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+                <i :style="{ clipPath: barClip(bar.value) }"></i>
+              </span>
+              <span class="eval-chart__value">{{ bar.pct }}</span>
+            </div>
+          </div>
+          <p class="eval-chart__split-label eval-chart__split-label--train">
+            train — tuning reference, not the gate ({{ row.train.n }} runs)
+          </p>
+          <div class="eval-chart__bars eval-chart__bars--train">
+            <div
+              v-for="bar in row.train.bars"
+              :key="bar.key"
+              class="eval-chart__bar"
+              :class="bar.color"
+            >
+              <span class="eval-chart__metric-label">{{ bar.label }}</span>
+              <span class="tool-result__bar eval-bar__track" aria-hidden="true">
+                <i :style="{ clipPath: barClip(bar.value) }"></i>
+              </span>
+              <span class="eval-chart__value">{{ bar.pct }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -188,6 +231,9 @@ const failureSummary = computed(() => {
         >
           <div class="eval-case__head">
             <span class="eval-compare__mode">{{ entry.mode }}</span>
+            <span class="eval-case__split" :class="`eval-case__split--${entry.split}`">{{
+              entry.split
+            }}</span>
             <span
               class="eval-case__marker"
               :class="entry.chainPass ? 'eval-case__marker--pass' : 'eval-case__marker--fail'"
