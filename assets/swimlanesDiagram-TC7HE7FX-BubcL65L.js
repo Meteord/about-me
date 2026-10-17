@@ -1,0 +1,8 @@
+import{c as e}from"./chunk-Y2CYZVJY-CCT2jiMK.js";import"./src-CUT9mzkt.js";import"./chunk-O7XYJQB3-_BM-4CTX.js";import"./channel-BZvw-S03.js";import"./path-CZoF8_eB.js";import"./dist-BDa23362.js";import"./array-BDV5MbVI.js";import"./chunk-ZIGJFQKS-DM0IbOjK.js";import"./line-DgfBUzuq.js";import"./chunk-742MDFTN-DLMuoxTZ.js";import"./chunk-MBY4JIJT-D3uuscIY.js";import"./chunk-5VM5RSS4-BQ3_lplJ.js";import"./chunk-DUW6YSOI-CI6yMbWt.js";import"./chunk-7PRAP22T-CCV3-cd5.js";import"./chunk-J5ZVWO5B-DCS7y4ei.js";import"./rough.esm-BG_znDRb.js";import"./chunk-7INBJB4K-0sv1K82Z.js";import"./chunk-5DYCD2WN-CBRwPYjV.js";import"./chunk-Z7XXMR3K-BxcZe4ZH.js";import"./chunk-GWA4HPMP-CW_Efn73.js";import"./chunk-XXDRQBXY-7SeFg7wF.js";import"./chunk-WEXAMYUT-UGuXIpUe.js";import"./chunk-UA2S7LBM-CTkmoe8q.js";import"./chunk-GNY47TPC-D1QDHF0x.js";import"./chunk-LNGE3PJU-CnoHp15Y.js";import{b as t,d as n}from"./chunk-7M6MHVWA-BItJF-2J.js";var r=e(e=>`${n(e)}
+  .swimlane.cluster:not([data-color-id]) rect {
+    stroke: ${e.clusterBorder} !important;
+  }
+  [data-look="neo"].cluster rect {
+    filter: none;
+  }
+`,`getStyles`),i=r,a=t({styles:i});export{a as diagram};
