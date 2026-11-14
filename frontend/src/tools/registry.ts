@@ -1,4 +1,4 @@
-import { aboutMeMarkdown, type AboutTopic } from '../data/siteData'
+import { aboutMeMarkdown, assistant, type AboutTopic } from '../data/siteData'
 import type { SectionId, ThemeName } from '../composables/useSiteLayout'
 import { getContentById, listContentItems } from '../composables/useLlmsContent'
 
@@ -173,8 +173,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     title: 'Blog — Chat with my website',
     section: 'blog',
     slug: 'chat-with-my-website',
-    description:
-      "The blog article 'Chat with my website' — how Mini-Michi, the on-device assistant, runs a real language model in the browser.",
+    description: `The blog article 'Chat with my website' — how ${assistant.name}, the on-device assistant, runs a real language model in the browser.`,
     aliases: [
       'chat with my website',
       'how does this page work',
@@ -343,7 +342,7 @@ export async function buildContextText(
 
 export function buildSystemPrompt(contextText = ''): string {
   const context = contextText ? `\n--- retrieved content ---\n${contextText}` : ''
-  return `You are MINI-MICHI, a tiny on-device AI assistant running entirely inside Michael Jaumann's personal website. A visitor is chatting with you. Answer the visitor's question from the retrieved content below.
+  return `You are ${assistant.name}, a friendly on-device assistant living inside Michael Jaumann's personal website. A visitor is chatting with you. Answer the visitor's question from the retrieved content below.
 
 Rules:
 - Base your answer ONLY on the retrieved content. Never invent facts about Michael.

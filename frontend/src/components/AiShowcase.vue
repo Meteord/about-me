@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
+import { assistant } from '../data/siteData'
 import AnchorHeading from './AnchorHeading.vue'
 import ChatDetails from './ChatDetails.vue'
 import ChatSurface from './ChatSurface.vue'
@@ -26,16 +27,16 @@ useReveal(root, { key: 'ai-showcase' })
         tag="h2"
         class="pixel-window__title"
         href="assistant"
-        label="Chat with Mini-Michi"
+        :label="`Chat with ${assistant.name}`"
       >
-        Chat with Mini-Michi
+        Chat with {{ assistant.name }}
       </AnchorHeading>
       <span class="pixel-window__crumb" aria-hidden="true">~/assistant</span>
     </div>
     <div class="pixel-window__content ai-showcase__content">
       <p class="ai-showcase__lead">
-        A small language model runs entirely in your browser — no server, no account, no API key.
-        Ask it about anything on this page.
+        A friendly 350M-parameter language model at your service, living in your local browser.
+        Ready to answer any question without hesitation.
       </p>
       <ChatSurface />
       <ChatDetails />

@@ -18,7 +18,7 @@ Their common job: quickly understand who Michael is and what he can do, and — 
 
 ## Product Purpose
 
-A personal "about me" page for Michael Jaumann, an AI and ML engineer based in Munich. It presents his bio, education, skills, projects, and contact links, and doubles as a live on-device AI demo: an in-browser assistant ("Mini-Michi") that answers questions about him and rearranges the page using tools.
+A personal "about me" page for Michael Jaumann, an AI and ML engineer based in Munich. It presents his bio, education, skills, projects, and contact links, and doubles as a live on-device AI demo: an in-browser assistant ("MJ-350") that answers questions about him and rearranges the page using tools.
 
 Both purposes are co-equal. Success means a visitor leaves with a clear professional picture of Michael **and** has experienced a real language model and retrieval pipeline running entirely in their browser.
 
@@ -29,7 +29,7 @@ A neighboring personal site could not truthfully copy the mechanism: a real SLM 
 ## Operating Context
 
 - Visitors browse one always-open page: the About, AI showcase, Blog (with the full article inline), Projects (with the full project list inline), and Contact bands stack in a fixed order. Deep links are plain anchors (`#blog`, `#projects`); older hash-routed URLs are redirected to those anchors.
-- The chat dock (Mini-Michi) is available alongside the page. On first send it lazily loads the chat model, then streams replies token-by-token.
+- The chat (MJ-350) is available in the assistant band. On first send it lazily loads the chat model, then streams replies token-by-token.
 - Before each reply the chat retrieves the top-k relevant tools and passes only those schemas to the model; retrieval modes are `bm25` (pure BM25 keyword match, instant), `vector` (prompt-router, lazy ~357 MB download), and `hybrid` (reciprocal rank fusion).
 - Tools either answer questions about Michael (`about_me`), describe the site from generated content (`about_site`), or rearrange the visible sections.
 - No accounts, no persistence beyond the session, no analytics requirement established.
@@ -53,7 +53,7 @@ A neighboring personal site could not truthfully copy the mechanism: a real SLM 
 
 ## Brand Commitments
 
-- Name: **Michael Jaumann**; the on-device assistant is named **Mini-Michi**.
+- Name: **Michael Jaumann**; the on-device assistant is named **MJ-350** (initials + parameter count, read like a hardware plate).
 - Voice: personal, self-aware, and playful — e.g. the personal tags "Open Sourcerer", "Spaghetti Lover", "Mediocre Runner at MRRC".
 - Durable identity constraint: the site is presented as a retro pixel-art CRT desktop with a warm dark palette and chunky "pixel-window" chrome. This is an established part of the product's identity, not a per-project choice.
 

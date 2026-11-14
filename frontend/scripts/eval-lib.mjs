@@ -101,7 +101,7 @@ export function createStubbedRequire({ siteData }) {
       return { ref, watch: () => {}, computed: (fn) => fn(), nextTick: (fn) => fn?.() }
     }
     if (request === '../data/siteData') {
-      return { siteData, aboutMeMarkdown: siteDataModule.aboutMeMarkdown, aboutTopicDescription: siteDataModule.aboutTopicDescription }
+      return { siteData, assistant: siteDataModule.assistant, aboutMeMarkdown: siteDataModule.aboutMeMarkdown, aboutTopicDescription: siteDataModule.aboutTopicDescription }
     }
     if (AUTO_STUB[request]) return AUTO_STUB[request]
     return frontendRequire(request)

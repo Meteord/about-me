@@ -52,7 +52,7 @@ const evalAggregate = computed(() => {
 const diagramSvg = ref('')
 const diagramFailed = ref(false)
 const diagramLabel =
-  "Request flow: you ask a question, the content retriever ranks the site's sources by BM25 and vector search, the top sources are injected into the context, and Mini-Michi streams a single-pass answer. Theme changes are applied directly by the retriever."
+  "Request flow: you ask a question, the content retriever ranks the site's sources by BM25 and vector search, the top sources are injected into the context, and MJ-350 streams a single-pass answer. Theme changes are applied directly by the retriever."
 
 let diagramStarted = false
 
@@ -85,7 +85,7 @@ async function renderDiagram(): Promise<void> {
       `mm-request-flow-${props.post.slug}`,
       `flowchart LR
       A["You<br/>ask a question"] --> B["Content retriever<br/>BM25 + vector · top-k"]
-      B --> C["Mini-Michi<br/>LFM2.5-350M<br/>context injection"]
+      B --> C["MJ-350<br/>LFM2.5-350M<br/>context injection"]
       C --> D["Reply<br/>streamed tokens"]
       B -. "theme request" .-> E["Apply action<br/>directly"]`,
     )
@@ -132,15 +132,15 @@ useReveal(root, {
         <p class="blog-post__tape">
           <time class="blog-post__date" :datetime="post.date">{{ formatBlogDate(post.date) }}</time>
           <span class="pixel-chip pixel-chip--orange">{{ post.readTime }} read</span>
-          <span class="pixel-chip pixel-chip--amber">100% on-device</span>
+          <span class="pixel-chip pixel-chip--amber">at your service</span>
         </p>
       </div>
     </div>
     <p class="tech-how__lead blog-post__lead">
-      This page has no backend — everything runs on-device in your browser. Mini-Michi is a small
-      language model streamed over WebGPU or WebAssembly, and before each reply a retrieval step
-      picks the most relevant content sources and injects them into the context, so the model only
-      ever reads what it needs. Theme changes are applied directly by the retriever.
+      Meet MJ-350 — a friendly little language model that lives right here in your browser, ready to
+      answer whenever you ask. Before each reply it picks the most relevant corners of this page and
+      hands them over as context, so it only ever reads what it needs. Theme changes are applied
+      directly by the retriever.
     </p>
 
     <h4 class="blog-post__subhead">
@@ -162,14 +162,14 @@ useReveal(root, {
             >The diagram couldn't render, but here's the flow:</span
           >
           You ask a question → Content retriever (BM25 + vector · top-k) → the top sources are
-          injected into the context → Mini-Michi (LFM2.5-350M) streams a single-pass reply. Theme
+          injected into the context → MJ-350 (LFM2.5-350M) streams a single-pass reply. Theme
           requests skip the model and are applied directly by the retriever.
         </p>
       </div>
       <div v-else class="blog-flow__diagram blog-flow__diagram--loading">
         <span class="blog-flow__loading" aria-hidden="true">rendering diagram…</span>
       </div>
-      <span class="tech-diagram__note">no data leaves your browser · 100% on-device</span>
+      <span class="tech-diagram__note">all of it happens right here in your browser</span>
     </div>
 
     <h4 class="blog-post__subhead">
@@ -335,7 +335,7 @@ useReveal(root, {
     <div class="blog-post__closer">
       <span class="blog-post__closer-tag">Try it yourself</span>
       <p class="blog-post__closer-text">
-        The thing this article describes is running on this page. Ask Mini-Michi in the chat section
+        The thing this article describes is running on this page. Ask MJ-350 in the chat section
         what BM25 means or which sources are in context — the reply is streamed to your browser by
         LFM2.5-350M. The floating launcher only navigates: it finds the matching section for you.
       </p>

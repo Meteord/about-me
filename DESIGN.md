@@ -349,7 +349,7 @@ leaving no gap).
 The first band is a person, not a table of contents. The title bar carries the name alone — display
 face, one blinking terminal cursor, no anchor mark — with `~/about` on the right. The body is a
 two-column grid: a mono status row (lit amber LED + `AI / ML ENGINEER / MUNICH, GERMANY`), the
-greeting, the personal tags, and two actions (`Ask Mini-Michi`, primary; `See the projects`,
+greeting, the personal tags, and two actions (`Ask MJ-350`, primary; `See the projects`,
 quiet). The portrait is a framed screen on the right — 2px amber bezel, 8px notch, faint scanlines,
 a mono caption plate — cropped square from the 320px source. On phones the portrait moves above the
 text at 120px wide.
@@ -362,14 +362,21 @@ the band is **not** mounted in `HomePage.vue`.
 
 ### Assistant Showcase, Details and Launcher
 
-The showcase is a normal band with a plain lead sentence, a shared `.chat-surface` (transcript,
-input, send/stop, Clear, a plain "Used: …" line) and one native `<details>` labelled "Technical
-details" holding the retrieval panel, model ids, dtype/device and trace export. The launcher is a
-fixed bottom-right trigger (`aria-expanded` + `aria-controls`) that opens a `role="dialog"` panel
-rendering the same surface and the same conversation; focus moves to the input, Tab stays inside,
-Escape closes and returns focus. The trigger fades out and leaves the tab order whenever it would
-land on top of the assistant band (it has nothing to add there), and shortens to "Find" below
-480px.
+The showcase is a normal band with a plain lead sentence and a **console**: one recessed screen
+(8px notch, inset bevels, no lift — it is sunk into the panel, not raised above it) holding, top to
+bottom, a plate (status LED, the assistant's name, its model readout, and a mono state word), the
+scrollable transcript, a one-line status readout (`Answers cite the page sources they used.` with
+the quiet Clear utility), and a `>` prompt row ending the screen. The prompt is the last line of the
+console: the field is borderless, the `>` marker is amber mono, and Send inverts to a transparent
+outline while there is nothing to send. Each answer's sources are chips aligned under its text
+column. One native `<details>` labelled "Technical details" holds the retrieval panel, model ids,
+dtype/device and trace export. The assistant's name lives in `assistant` (`src/data/siteData.ts`)
+and is read by the band title, the console plate, the system prompt and the generated content. The
+launcher is a fixed bottom-right trigger (`aria-expanded` + `aria-controls`) that opens a
+`role="dialog"` panel rendering the same retriever and the same conversation; focus moves to the
+input, Tab stays inside, Escape closes and returns focus. The trigger fades out and leaves the tab
+order whenever it would land on top of the assistant band (it has nothing to add there), and
+shortens to "Find" below 480px.
 
 ### Contact Sign-off
 

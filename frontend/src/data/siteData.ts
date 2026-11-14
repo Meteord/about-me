@@ -49,6 +49,16 @@ export interface Tag {
   url?: string
 }
 
+/**
+ * The on-device assistant's public identity. Single source of truth: the band
+ * title, console plate, prompts, error copy and generated content all read
+ * the name from here, so renaming it is a one-line edit.
+ */
+export const assistant = {
+  name: 'MJ-350',
+  model: 'LFM2.5-350M',
+}
+
 export const siteData = {
   name: 'Michael Jaumann',
   location: 'Munich',
@@ -112,7 +122,7 @@ export const siteData = {
     {
       name: 'Chat model — LFM2.5-350M',
       description:
-        'Mini-Michi, the on-device assistant, runs LiquidAI\u2019s LFM2.5-350M-ONNX causal language model entirely in the browser via transformers.js, streamed over WebGPU or WebAssembly. No data leaves the page.',
+        'MJ-350, the friendly assistant living on this page, runs LiquidAI\u2019s LFM2.5-350M-ONNX causal language model entirely in the browser via transformers.js, streamed over WebGPU or WebAssembly. Answers appear word by word as the model writes them.',
       link: 'https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX',
       tags: ['LFM2.5-350M', 'transformers.js', 'WebGPU', 'WASM'],
       icon: 'chip',
@@ -158,7 +168,7 @@ export const siteData = {
       title: 'Chat with my website',
       date: '2026-09-20',
       teaser:
-        'How Mini-Michi, the on-device assistant on this page, runs a real language model in your browser — and why it only ever reads the content sources it actually needs.',
+        'Meet MJ-350, the friendly assistant on this page — a real language model that runs in your browser and only ever reads the content sources it actually needs.',
       readTime: '3 min',
     },
   ] as BlogPost[],

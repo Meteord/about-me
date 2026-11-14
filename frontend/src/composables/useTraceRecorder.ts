@@ -1,10 +1,11 @@
 import type { RetrievalStats } from '../composables/useToolRetrieval'
+import { assistant } from '../data/siteData'
 import type { ThemeName } from '../composables/useSiteLayout'
 
 const CHAT_MODEL = 'LiquidAI/LFM2.5-350M'
 
 /**
- * Maps the Mini-Michi chat transcript into the HuggingFace Session Trace
+ * Maps the assistant chat transcript into the HuggingFace Session Trace
  * Simple Format (STS-Format) JSONL — contracts/traces.md. Pure client-side:
  * the produced file is downloaded, never uploaded (constitution Principle I).
  */
@@ -25,7 +26,7 @@ function timestampId(): string {
 
 function firstUserQuery(messages: TraceTranscriptMessage[]): string {
   const first = messages.find((message) => message.role === 'user')
-  return (first?.content ?? 'Mini-Michi session').slice(0, 80)
+  return (first?.content ?? `${assistant.name} session`).slice(0, 80)
 }
 
 export function useTraceRecorder() {
@@ -33,8 +34,10 @@ export function useTraceRecorder() {
     const stamp = timestampId()
     const header = {
       type: 'session',
+      // Data contract: `scripts/trace-lib.mjs` validates this id, so it keeps its
+      // original slug even though the assistant is now displayed as MJ-350.
       harness: 'about-me.mini-michi',
-      id: `mini-michi-${stamp}`,
+      id: `mj-350-${stamp}`,
       name: firstUserQuery(messages),
     }
     const lines = [JSON.stringify(header)]
@@ -85,7 +88,7 @@ export function useTraceRecorder() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `mini-michi-${timestampId()}.jsonl`
+    anchor.download = `mj-350-${timestampId()}.jsonl`
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()

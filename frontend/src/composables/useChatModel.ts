@@ -42,7 +42,7 @@ export function humanizeModelError(message: string): string {
   if (lower.includes('webgpu') || lower.includes('gpu') || lower.includes('device')) {
     return 'The browser could not start the model engine — reload the page to retry, or use a browser where WebGPU works.'
   }
-  return 'Mini-Michi could not start — please try again.'
+  return 'The model could not start — please try again.'
 }
 
 export interface ChatModelState {

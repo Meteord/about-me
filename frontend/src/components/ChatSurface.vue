@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { MODEL_STATUS_LABEL, humanizeModelError } from '../composables/useChatModel'
+import { humanizeModelError } from '../composables/useChatModel'
 import { useChatSession, type ChatMessage } from '../composables/useChatSession'
+import { assistant } from '../data/siteData'
 import { sourceLinksFor, type SourceLink } from '../tools/sourceLinks'
 
 const {
@@ -73,6 +74,33 @@ watch([() => messages.value.length, lastLength], () => scrollToBottom())
 
 const canAsk = computed(() => state.value.status === 'ready' || state.value.status === 'idle')
 const isWorking = computed(() => isGenerating.value && generatingId.value === null)
+const isBooting = computed(
+  () => state.value.status === 'checking' || state.value.status === 'loading',
+)
+/** A failure already rendered as a transcript entry owns the message. */
+const hasErrorEntry = computed(() => messages.value.some((message) => message.role === 'error'))
+
+/** The console plate's live readout — plain words, never an internal enum. */
+const consoleState = computed(() => {
+  switch (state.value.status) {
+    case 'checking':
+      return 'checking device'
+    case 'loading':
+      return `downloading ${state.value.progress}%`
+    case 'ready':
+      return `ready · ${state.value.device === 'webgpu' ? 'WebGPU' : 'WebAssembly'}`
+    case 'error':
+      return 'failed'
+    default:
+      return 'not loaded'
+  }
+})
+
+const placeholder = computed(() => {
+  if (isBooting.value) return 'Downloading…'
+  if (state.value.status === 'error') return 'Model not loaded'
+  return 'Ask about Michael…'
+})
 
 function escapeHtml(text: string): string {
   return text
@@ -155,28 +183,51 @@ defineExpose({ focusInput })
 </script>
 
 <template>
-  <div class="chat-surface">
+  <div class="chat-console">
+    <div class="chat-console__bar">
+      <span class="chat-console__id">
+        <span
+          class="chat-console__led"
+          :class="`chat-console__led--${state.status}`"
+          aria-hidden="true"
+        ></span>
+        <span class="chat-console__name">{{ assistant.name }}</span>
+      </span>
+      <span class="chat-console__spec">{{ assistant.model }} · on-device</span>
+      <span class="chat-console__state">{{ consoleState }}</span>
+    </div>
+
     <div
       ref="logEl"
-      class="pixel-chat chat-surface__log"
+      class="chat-console__log"
       role="log"
       aria-live="polite"
-      aria-label="Mini-Michi conversation"
+      :aria-label="`${assistant.name} conversation`"
     >
       <template v-for="item in renderItems" :key="itemKey(item)">
-        <p v-if="item.kind === 'sources'" class="chat-surface__sources">
+        <div v-if="item.kind === 'sources'" class="chat-surface__sources">
           <span class="chat-surface__sources-label">Sources</span>
           <template v-for="link in item.links" :key="link.name">
-            <a v-if="link.anchor" class="pixel-link chat-surface__source" :href="`#${link.anchor}`">
+            <a
+              v-if="link.anchor"
+              class="pixel-chip pixel-chip--sm chat-surface__source"
+              :href="`#${link.anchor}`"
+            >
               {{ link.label }}
             </a>
-            <span v-else class="chat-surface__source">{{ link.label }}</span>
+            <span v-else class="pixel-chip pixel-chip--sm chat-surface__source">
+              {{ link.label }}
+            </span>
           </template>
-        </p>
+        </div>
         <div v-else-if="item.message.role === 'user'" class="pixel-msg pixel-msg--user">
           <p>{{ item.message.content }}</p>
         </div>
-        <div v-else-if="item.message.role === 'assistant'" class="pixel-msg pixel-msg--ai">
+        <div
+          v-else-if="item.message.role === 'assistant'"
+          class="pixel-msg pixel-msg--ai"
+          :class="{ 'pixel-msg--streaming': generatingId === item.message.id }"
+        >
           <img
             src="/mm.webp"
             alt=""
@@ -190,38 +241,36 @@ defineExpose({ focusInput })
               class="pixel-msg__text pixel-msg__markdown"
               v-html="renderMarkdown(item.message.content)"
             ></div>
-            <span
-              v-if="generatingId === item.message.id"
-              class="pixel-msg__cursor"
-              aria-hidden="true"
-            ></span>
           </div>
         </div>
         <div v-else-if="item.message.role === 'action'" class="pixel-msg pixel-msg--action">
           <span
             v-if="item.message.payload.kind === 'theme'"
-            class="pixel-chip"
+            class="pixel-chip pixel-chip--sm"
             :class="`pixel-chip--${item.message.payload.theme}`"
           >
-            theme → {{ item.message.payload.theme }}
+            <span
+              class="chat-console__swatch"
+              :class="`chat-console__swatch--${item.message.payload.theme}`"
+              aria-hidden="true"
+            ></span>
+            Theme switched to {{ item.message.payload.theme }}
           </span>
         </div>
         <div v-else-if="item.message.role === 'error'" class="pixel-msg pixel-msg--error">
-          {{ item.message.content }}
+          <p>{{ item.message.content }}</p>
+          <button class="pixel-link-btn pixel-msg__jump" type="button" @click="retry">Retry</button>
         </div>
       </template>
 
       <p v-if="isWorking" class="chat-surface__working">Looking through the site…</p>
 
-      <div
-        v-if="messages.length === 0 && (state.status === 'checking' || state.status === 'loading')"
-        class="pixel-msg pixel-msg--status"
-      >
-        <p class="pixel-msg__text">Warming up Mini-Michi…</p>
+      <div v-if="messages.length === 0 && isBooting" class="pixel-msg pixel-msg--status">
+        <p class="chat-console__boot">Downloading the chat model…</p>
         <div
           class="ai-progress pixel-msg__progress"
           role="progressbar"
-          aria-label="Downloading Mini-Michi"
+          aria-label="Downloading the chat model"
           aria-valuemin="0"
           aria-valuemax="100"
           :aria-valuenow="state.progress"
@@ -234,33 +283,38 @@ defineExpose({ focusInput })
         <p class="pixel-msg__dim">{{ state.progress }}% · {{ state.file || 'fetching…' }}</p>
       </div>
 
-      <div v-else-if="state.status === 'error'" class="pixel-msg pixel-msg--error">
+      <div v-if="state.status === 'error' && !hasErrorEntry" class="pixel-msg pixel-msg--error">
         <p>{{ humanizeModelError(state.error ?? '') }}</p>
         <button class="pixel-link-btn pixel-msg__jump" type="button" @click="retry">Retry</button>
       </div>
 
-      <div v-if="messages.length === 0" class="chat-surface__start">
-        <p v-if="state.status === 'idle'" class="chat-surface__hint">
-          Ask about Michael’s work, education, projects or how this page works. The model downloads
-          once, then stays in your browser.
-        </p>
-        <p v-else-if="state.status === 'ready'" class="chat-surface__hint">
-          Ready. Ask about Michael’s work, education, projects or how this page works.
-        </p>
-        <button
-          v-if="state.status === 'idle'"
-          class="pixel-link-btn chat-surface__load"
-          type="button"
-          @click="loadModel"
-        >
-          Load Mini-Michi
-        </button>
+      <div
+        v-if="messages.length === 0 && !isBooting && state.status !== 'error'"
+        class="chat-console__empty"
+      >
+        <div class="chat-console__intro-row">
+          <img
+            src="/mm.webp"
+            alt=""
+            aria-hidden="true"
+            width="28"
+            height="28"
+            class="pixel-chat__bubble-avatar"
+          />
+          <p class="chat-console__intro">
+            Ask me anything about Michael — his work, education, projects, or how this page is
+            built.
+          </p>
+        </div>
+        <div v-if="state.status === 'idle'" class="chat-console__boot-row">
+          <button class="pixel-link-btn" type="button" @click="loadModel">Load the model</button>
+          <span class="chat-console__boot-note"> Downloads once, then stays in your browser. </span>
+        </div>
       </div>
 
       <div
-        v-if="suggestions.length"
-        class="pixel-tags chat-surface__examples"
-        aria-label="Try asking"
+        v-if="messages.length === 0 && suggestions.length && state.status !== 'error'"
+        class="chat-surface__examples"
       >
         <button
           v-for="example in suggestions"
@@ -273,7 +327,7 @@ defineExpose({ focusInput })
           {{ example }}
         </button>
         <button
-          class="pixel-link-btn pixel-chat__shuffle"
+          class="pixel-chat__shuffle"
           type="button"
           :disabled="isGenerating || !canAsk"
           @click="pickSuggestions()"
@@ -283,22 +337,29 @@ defineExpose({ focusInput })
       </div>
     </div>
 
-    <form class="pixel-chat__input chat-surface__input" @submit.prevent="handleSend()">
+    <div class="chat-console__foot">
+      <span class="chat-console__note">Answers cite the page sources they used.</span>
+      <button
+        class="chat-console__clear"
+        type="button"
+        :disabled="isGenerating || messages.length === 0"
+        @click="clear"
+      >
+        Clear
+      </button>
+    </div>
+
+    <form class="chat-console__prompt" @submit.prevent="handleSend()">
+      <span class="chat-console__prompt-mark" aria-hidden="true">&gt;</span>
       <input
         ref="inputEl"
         v-model="input"
-        class="pixel-chat__field chat-surface__field"
+        class="chat-console__field"
         type="text"
         autocomplete="off"
         :disabled="isGenerating || !canAsk"
-        :placeholder="
-          state.status === 'ready'
-            ? 'Ask Mini-Michi…'
-            : state.status === 'idle'
-              ? 'Type a question to load Mini-Michi…'
-              : 'Loading Mini-Michi…'
-        "
-        aria-label="Chat message"
+        :placeholder="placeholder"
+        aria-label="Your question"
       />
       <button
         v-if="isGenerating"
@@ -312,19 +373,5 @@ defineExpose({ focusInput })
         Send
       </button>
     </form>
-
-    <div class="chat-surface__footer">
-      <span class="chat-surface__status" aria-live="polite">
-        chat model · {{ MODEL_STATUS_LABEL[state.status] }}
-      </span>
-      <button
-        class="pixel-link-btn chat-surface__clear"
-        type="button"
-        :disabled="isGenerating || messages.length === 0"
-        @click="clear"
-      >
-        Clear
-      </button>
-    </div>
   </div>
 </template>

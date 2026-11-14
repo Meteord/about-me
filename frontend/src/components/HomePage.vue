@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 import { useChatSession } from '../composables/useChatSession'
 import { useSiteLayout } from '../composables/useSiteLayout'
+import { assistant } from '../data/siteData'
 import AboutIntro from './AboutIntro.vue'
 import AboutSection from './AboutSection.vue'
 import AiShowcase from './AiShowcase.vue'
@@ -41,7 +42,9 @@ onBeforeUnmount(() => {
     <ContactSection v-if="isVisible('contact')" />
 
     <div v-if="noSectionVisible" class="app-column--empty" role="note">
-      <p class="pixel-chat__hint">All sections are hidden. Ask Mini-Michi to show one again.</p>
+      <p class="pixel-chat__hint">
+        All sections are hidden. Ask {{ assistant.name }} to show one again.
+      </p>
     </div>
 
     <AssistantLauncher />

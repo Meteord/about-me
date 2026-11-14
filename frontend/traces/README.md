@@ -1,10 +1,10 @@
 # Runtime traces
 
-Drop real chat sessions from Mini-Michi here so the evaluation suite can score them.
+Drop real chat sessions from MJ-350 here so the evaluation suite can score them.
 
 ## How a trace gets here
 
-1. Chat with Mini-Michi in the dock (e.g. "what projects has he built?").
+1. Chat with MJ-350 in the assistant band (e.g. "what projects has he built?").
 2. When the reply is finished, click **Save trace** in the dock banner — the browser downloads
    `mini-michi-<timestamp>.jsonl`.
 3. Move the file into this directory.
@@ -40,7 +40,7 @@ linked `tool` results, and the final answer. The spec lives in `specs/002-agent-
 ## Privacy
 
 **Traces may contain prompts and personal data.** A session is the literal conversation you had with
-Mini-Michi — it can include names, project details, and anything else you typed.
+MJ-350 — it can include names, project details, and anything else you typed.
 
 - Nothing is uploaded automatically. The site only ever *downloads* the file you explicitly save.
 - Before publishing a trace (e.g. to a Hub dataset or a shared bucket), review it and redact anything

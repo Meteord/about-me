@@ -48,6 +48,7 @@ const ref = (value) => ({ value })
 /** Stub modules that pull browser-only state (window, import.meta.env). */
 const AUTO_STUB = {
   '../data/siteData': {
+    assistant: { name: 'MJ-350', model: 'LFM2.5-350M' },
     aboutMeMarkdown: () => '',
     aboutTopicDescription: () => '',
   },

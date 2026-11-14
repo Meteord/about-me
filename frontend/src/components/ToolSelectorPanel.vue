@@ -200,9 +200,9 @@ const themeActed = computed(() => {
     <div class="model-settings__section">
       <p class="model-settings__heading">Content retriever</p>
       <p class="tool-selector__intro">
-        Before every reply, Mini-Michi matches your question against every content source and action
-        and injects only the few most relevant sources into the chat context — the model never sees
-        all {{ TOTAL }} at once, and actions are applied directly by the retriever.
+        Before every reply, MJ-350 matches your question against every content source and action and
+        injects only the few most relevant sources into the chat context — the model never sees all
+        {{ TOTAL }} at once, and actions are applied directly by the retriever.
       </p>
 
       <div class="tool-selector__controls">

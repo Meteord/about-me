@@ -6,7 +6,7 @@ import { useToolRetrieval, type RetrievalStats, type ToolScore } from './useTool
 import { buildContextText, buildSystemPrompt, decideAction } from '../tools/registry'
 
 /**
- * The inline Mini-Michi conversation: retrieval, context injection, a streamed
+ * The inline assistant conversation: retrieval, context injection, a streamed
  * answer and source links under that answer. It never moves the page — the
  * floating launcher (`useChatNav`) is the navigation helper.
  */
@@ -28,16 +28,20 @@ export type ChatMessage =
   | { id: number; role: 'action'; payload: ActionPayload }
   | { id: number; role: 'error'; content: string; detail?: string }
 
-const EXAMPLES = [
-  'What can you do?',
-  'Tell me about Michael\u2019s education',
-  'What projects has Michael worked on?',
-  'How can I contact Michael?',
-  'How does this site work?',
-  'Show me Michael\u2019s skills',
-  'Switch the theme to red',
-  'Where does Michael work?',
-  'Give me a random fact',
+/**
+ * Example prompts, grouped so a fresh transcript always shows the demo's full
+ * range: what it can do, what it knows, and that it can change the page.
+ */
+const EXAMPLE_GROUPS: string[][] = [
+  ['What can you do?', 'How does this page work?', 'Give me an overview'],
+  [
+    'Tell me about Michael\u2019s education',
+    'What projects has Michael worked on?',
+    'How can I contact Michael?',
+    'Where does Michael work?',
+    'Tell me something random about Michael',
+  ],
+  ['Switch the theme to orange', 'Switch the theme to red', 'Switch the theme to amber'],
 ]
 
 /* ------------------------------------------------------------------ */
@@ -85,12 +89,13 @@ function push(role: ChatMessage['role'], extra: Partial<ChatMessage> = {}): numb
   return id
 }
 
-function pickSuggestions(count = 2): void {
-  const pool = [...EXAMPLES]
+function pickSuggestions(): void {
   const picked: string[] = []
-  for (let i = 0; i < count && pool.length; i++) {
-    const index = Math.floor(Math.random() * pool.length)
-    picked.push(pool.splice(index, 1)[0])
+  for (const group of EXAMPLE_GROUPS) {
+    // Never suggest the theme the page is already wearing.
+    const pool = group.filter((example) => !example.endsWith(layout.theme))
+    const source = pool.length ? pool : group
+    picked.push(source[Math.floor(Math.random() * source.length)])
   }
   suggestions.value = picked
 }

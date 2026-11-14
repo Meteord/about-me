@@ -92,12 +92,7 @@ defineExpose({ focusInput })
       >
         {{ example }}
       </button>
-      <button
-        class="pixel-link-btn pixel-chat__shuffle"
-        type="button"
-        :disabled="busy"
-        @click="pickSuggestions()"
-      >
+      <button class="pixel-chat__shuffle" type="button" :disabled="busy" @click="pickSuggestions()">
         Shuffle
       </button>
     </div>
