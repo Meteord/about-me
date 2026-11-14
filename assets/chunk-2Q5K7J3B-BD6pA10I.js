@@ -1,0 +1,1 @@
+import{c as e}from"./chunk-Y2CYZVJY-CaiXs8_U.js";var t=class{constructor(e){this.init=e,this.records=this.init()}static#_=e(this,`ImperativeState`);reset(){this.records=this.init()}};export{t as b};
