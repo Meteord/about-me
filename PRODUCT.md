@@ -28,8 +28,8 @@ A neighboring personal site could not truthfully copy the mechanism: a real SLM 
 
 ## Operating Context
 
-- Visitors browse a single-page site whose sections are collapsible "pixel-window" cards; blog posts and the projects listing live on hash-routed pages (`#/blog/...`, `#/projects`).
-- The chat dock (Mini-Michi) is available alongside every view. On first send it lazily loads the chat model, then streams replies token-by-token.
+- Visitors browse one always-open page: the About, AI showcase, Blog (with the full article inline), Projects (with the full project list inline), and Contact bands stack in a fixed order. Deep links are plain anchors (`#blog`, `#projects`); older hash-routed URLs are redirected to those anchors.
+- The chat dock (Mini-Michi) is available alongside the page. On first send it lazily loads the chat model, then streams replies token-by-token.
 - Before each reply the chat retrieves the top-k relevant tools and passes only those schemas to the model; retrieval modes are `bm25` (pure BM25 keyword match, instant), `vector` (prompt-router, lazy ~357 MB download), and `hybrid` (reciprocal rank fusion).
 - Tools either answer questions about Michael (`about_me`), describe the site from generated content (`about_site`), or rearrange the visible sections.
 - No accounts, no persistence beyond the session, no analytics requirement established.
@@ -38,8 +38,8 @@ A neighboring personal site could not truthfully copy the mechanism: a real SLM 
 
 **Capabilities (confirmed in code):**
 
-- Collapsible pixel-window sections: About, Blog, Projects, Contact.
-- Dedicated hash-routed pages for blog posts and the projects listing, with home teasers.
+- Always-open pixel-window sections: About, AI showcase, Blog, Projects, Contact.
+- The full blog article and the full projects listing render inline on the one page; there are no routed views, only anchors and legacy-hash redirects.
 - On-device chat assistant with streamed generation, WebGPU (q4) with WASM (q8) fallback.
 - Tool registry with retrieval-driven schema pruning and a visual tool-selector panel.
 - Retrievable site content generated into `public/llms/*.md` plus `llms.txt`.

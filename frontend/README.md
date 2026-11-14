@@ -40,10 +40,10 @@ Runs `prettier --write src/`. No semicolons, single quotes, print width 100.
 
 ## Structure
 
-- `src/App.vue` — renders the collapsible sections
-- `src/components/` — `AboutSection.vue`, `ProjectsSection.vue`, `ContactSection.vue`
+- `src/App.vue` — renders the single-page composition
+- `src/components/` — the always-open sections (`AboutIntro`, `AboutSection`, `AiShowcase`, `BlogSection` + `BlogArticle`, `ProjectsSection`, `ContactSection`)
 - `src/assets/main.css` — all global styling (components carry no `<style>` block)
-- `public/` — static assets; `mj.jpg` is referenced as root-absolute `/mj.jpg` and rewritten against `base` at build time
+- `public/` — static assets; `mj.webp` is referenced as root-absolute `/mj.webp` and rewritten against `base` at build time
 
 ## Deploy notes
 

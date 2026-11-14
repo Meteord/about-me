@@ -2,7 +2,6 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { MODEL_STATUS_LABEL, humanizeModelError } from '../composables/useChatModel'
 import { SECTION_LABEL, useChatSession } from '../composables/useChatSession'
-import { blogHref, projectsHref } from '../composables/useHashRoute'
 import { siteData } from '../data/siteData'
 
 const props = defineProps<{ variant: 'inline' | 'launcher' }>()
@@ -200,22 +199,14 @@ defineExpose({ focusInput })
             <button
               class="pixel-link-btn pixel-msg__jump"
               type="button"
-              @click="focusAssistantTarget(message.payload.section)"
+              @click="focusAssistantTarget(message.payload.section, message.payload.target)"
             >
-              View {{ SECTION_LABEL[message.payload.section] }} section
+              {{
+                message.payload.target
+                  ? 'View the article'
+                  : `View ${SECTION_LABEL[message.payload.section]} section`
+              }}
             </button>
-          </template>
-          <template v-else>
-            <a
-              :href="
-                message.payload.page === 'projects'
-                  ? projectsHref()
-                  : blogHref(message.payload.slug)
-              "
-              class="pixel-link-btn pixel-msg__jump"
-            >
-              {{ message.payload.page === 'projects' ? 'View projects page' : 'View blog post' }}
-            </a>
           </template>
         </div>
         <div v-else-if="message.role === 'error'" class="pixel-msg pixel-msg--error">

@@ -47,7 +47,7 @@ export function installWindowShim() {
 
 const SECTION_ITEMS = [
   { id: 'about', title: 'About', description: 'Bio, education, skills and hobbies', kind: 'section', section: 'about' },
-  { id: 'projects', title: 'Projects', description: 'Open-source projects like MUCGPT, on their own page', kind: 'page', section: 'projects' },
+  { id: 'projects', title: 'Projects', description: 'Open-source projects like MUCGPT, in the Projects section', kind: 'section', section: 'projects' },
   { id: 'contact', title: 'Contact', description: 'LinkedIn and GitHub links', kind: 'section', section: 'contact' },
   { id: 'blog', title: 'Blog', description: 'Blog articles about this site and the models that power it', kind: 'section', section: 'blog' },
 ]
@@ -64,7 +64,7 @@ export function createStubbedRequire({ siteData }) {
       id: `blog:${post.slug}`,
       title: post.title,
       description: post.teaser,
-      kind: 'page',
+      kind: 'article',
       section: 'blog',
       slug: post.slug,
     }))

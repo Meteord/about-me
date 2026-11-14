@@ -23,7 +23,7 @@ export type StatFormat =
   | { kind: 'text' }
 
 export interface StatSource {
-  /** In-page anchor (`#about-skills`) or an existing hash route (`#/projects`). */
+  /** In-page anchor (`#about-skills`, `#blog-chat-with-my-website`). */
   href: string
   /** Link text a visitor can read, e.g. "see education". */
   label: string
@@ -70,8 +70,8 @@ interface StatDraft {
   source: StatSource
 }
 
-const ARTICLE: StatSource = { href: '#/blog/chat-with-my-website', label: 'how this works' }
-const EVALUATION: StatSource = { href: '#/blog/chat-with-my-website', label: 'the evaluation' }
+const ARTICLE: StatSource = { href: '#blog-chat-with-my-website', label: 'how this works' }
+const EVALUATION: StatSource = { href: '#eval-results', label: 'the evaluation' }
 const EDUCATION: StatSource = { href: '#about-education', label: 'see education' }
 const SKILLS: StatSource = { href: '#about-skills', label: 'see skills' }
 const CONTACT: StatSource = { href: '#contact', label: 'see contact' }

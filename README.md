@@ -12,7 +12,7 @@ Personal "about me" page for Michael Jaumann — an AI and ML engineer based in 
 ## Layout
 
 - `frontend/` — the entire Vue app (Vite + TypeScript)
-  - `src/components/` — the collapsible pixel-window sections (About, Projects, Contact)
+  - `src/components/` — the always-open pixel-window sections (About, Blog, Projects, Contact) plus the inline assistant showcase
   - `src/assets/main.css` — all global styling
   - `public/` — static assets (`favicon.ico`, `mj.jpg`)
 - `.github/workflows/` — CI (lint + build), GitHub Pages deploy, Renovate, secret scanning

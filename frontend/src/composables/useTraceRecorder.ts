@@ -77,19 +77,15 @@ export function useTraceRecorder() {
         } else {
           const kind = message.payload?.kind ?? 'unknown'
           const detail =
-            message.payload?.kind === 'page'
-              ? message.payload.page === 'projects'
-                ? 'projects'
-                : message.payload.slug
-              : message.payload?.kind === 'section'
-                ? message.payload.section
-                : ''
+            message.payload?.kind === 'section'
+              ? `${message.payload.section}${message.payload.target ? `:${message.payload.target}` : ''}`
+              : ''
           lines.push(
             JSON.stringify({
               type: 'message',
               message: {
                 role: 'system',
-                content: `navigate: ${kind}${detail ? `:${detail}` : ''}`,
+                content: `jump: ${kind}${detail ? `:${detail}` : ''}`,
               },
             }),
           )

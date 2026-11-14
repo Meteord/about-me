@@ -99,9 +99,16 @@ export function useSiteLayout() {
     nextTick(() => {
       const el = target ? document.getElementById(target) : null
       const fallback = document.getElementById(id)
-      ;(el ?? fallback)?.scrollIntoView({
+      const focusTarget = el ?? fallback
+      // Small spotlights read better centred; a tall article should start at
+      // its title instead of jumping into the middle of it.
+      const block =
+        el && el.getBoundingClientRect().height < (window.innerHeight || 0) * 0.8
+          ? 'center'
+          : 'start'
+      focusTarget?.scrollIntoView({
         behavior: reducedMotion ? 'auto' : 'smooth',
-        block: el ? 'center' : 'start',
+        block,
       })
     })
 

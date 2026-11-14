@@ -153,7 +153,7 @@ const failureSummary = computed(() => {
 
 <template>
   <div v-if="results.fixtures.total > 0 && results.modes.length > 0" class="eval-compare">
-    <h4 class="eval-cases__title">Comparison</h4>
+    <h5 class="eval-cases__title">Comparison</h5>
     <p class="eval-compare__note">
       Pass/fail gate: the {{ results.config.gateSplit }} split ({{ results.fixtures.test }} of
       {{ results.fixtures.total }} fixtures) — train rows are the tuning reference, not the gate.
@@ -182,10 +182,10 @@ const failureSummary = computed(() => {
 
     <div class="eval-chart">
       <div v-for="row in compareRows" :key="row.mode" class="eval-chart__row">
-        <h4 class="eval-chart__mode">
+        <h6 class="eval-chart__mode">
           {{ row.mode }}
           <span class="eval-chart__mode-latency">avg time {{ formatLatency(row.latencyMs) }}</span>
-        </h4>
+        </h6>
         <div class="eval-chart__splits">
           <p class="eval-chart__split-label">
             <span>test — the pass/fail gate ({{ row.test.n }} runs)</span>
@@ -231,7 +231,7 @@ const failureSummary = computed(() => {
       </div>
     </div>
 
-    <h4 class="eval-cases__title">Per fixture</h4>
+    <h5 class="eval-cases__title">Per fixture</h5>
     <p v-if="failureSummary" class="eval-compare__note">{{ failureSummary }}</p>
     <ol id="eval-cases-list" class="eval-compare__list">
       <li v-for="group in visibleGroups" :key="group.fixtureIndex" class="eval-compare__group">

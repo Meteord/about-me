@@ -17,9 +17,13 @@ export interface RevealOptions {
   /** IntersectionObserver threshold; the first observer created wins. */
   threshold?: number
   rootMargin?: string
-  /** Stable identity: a remount (route return, assistant hide/show) of the same
-      key never replays the reveal. */
+  /** Stable identity: a remount (assistant hide/show) of the same key never
+      replays the reveal. */
   key?: string
+  /** Runs once when the element first becomes visible (or immediately when
+      motion is reduced). Used to defer expensive work such as the mermaid
+      diagram until the article is actually approached. */
+  onReveal?: () => void
 }
 
 const COUNT_DURATION_MS = 1100
@@ -149,6 +153,7 @@ export function useReveal(target: Ref<HTMLElement | null>, options: RevealOption
     stopObserving = null
     if (key) finishedKeys.add(key)
     target.value?.classList.add('reveal--in')
+    options.onReveal?.()
   }
 
   onMounted(() => {
@@ -158,6 +163,7 @@ export function useReveal(target: Ref<HTMLElement | null>, options: RevealOption
     if (prefersReducedMotion() || finishedElements.has(el) || (key && finishedKeys.has(key))) {
       finishedElements.add(el)
       el.classList.add('reveal--in')
+      options.onReveal?.()
       return
     }
 

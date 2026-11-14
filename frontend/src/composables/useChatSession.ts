@@ -21,9 +21,7 @@ import {
 export type ActionPayload =
   | { kind: 'theme'; theme: ThemeName }
   | { kind: 'contact' }
-  | { kind: 'section'; section: SectionId }
-  | { kind: 'page'; page: 'projects' }
-  | { kind: 'page'; page: 'blog'; slug: string }
+  | { kind: 'section'; section: SectionId; target?: string }
 
 export type ChatMessage =
   | { id: number; role: 'user'; content: string }
@@ -142,23 +140,17 @@ function topContentSource(rows: ToolScore[]): SourceDef | undefined {
 function actionPayloadFor(def: SourceDef | undefined): ActionPayload | null {
   if (!def) return null
   if (def.name === 'contact') return { kind: 'contact' }
-  if (def.section === 'projects') return { kind: 'page', page: 'projects' }
-  if (def.slug) return { kind: 'page', page: 'blog', slug: def.slug }
+  if (def.section === 'blog' && def.slug) {
+    return { kind: 'section', section: 'blog', target: `blog-${def.slug}` }
+  }
   if (def.section) return { kind: 'section', section: def.section }
   return null
 }
 
-function applyPageEffect(def: SourceDef | undefined): void {
-  if (!def) return
-  if (def.section === 'projects') {
-    window.location.hash = '#/projects'
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  } else if (def.slug) {
-    window.location.hash = `#/blog/${def.slug}`
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  } else if (def.section) {
-    focusSection(def.section, { target: def.spotlight })
-  }
+function applyContentEffect(def: SourceDef | undefined): void {
+  if (!def?.section) return
+  const target = def.slug ? `blog-${def.slug}` : def.spotlight
+  focusSection(def.section, target ? { target } : {})
 }
 
 /** Fetch the matched content, inject it and record what was used. */
@@ -169,12 +161,12 @@ async function injectSources(names: string[], retrievalId: number): Promise<stri
   return text
 }
 
-/** Scroll/spotlight (or navigate to) the highest-ranked matched content source. */
+/** Scroll/spotlight the highest-ranked matched content source. */
 function applyTopSource(rows: ToolScore[]): void {
   const topSource = topContentSource(rows)
   const payload = actionPayloadFor(topSource)
   if (!payload) return
-  applyPageEffect(topSource)
+  applyContentEffect(topSource)
   push('action', { payload })
 }
 
@@ -324,9 +316,9 @@ function setLauncherOpen(open: boolean): void {
   launcherOpen.value = open
 }
 
-/** Applied by an assistant action payload (contact/section/page render as links). */
-function focusAssistantTarget(section: SectionId): void {
-  focusSection(section)
+/** Applied by an assistant action payload (contact/section jump render as links). */
+function focusAssistantTarget(section: SectionId, target?: string): void {
+  focusSection(section, target ? { target } : {})
 }
 
 /** Assistant-driven hide/show of a section, and of the showcase band. */

@@ -180,15 +180,16 @@ no pure white, no cool gray. If a value looks blue or neutral-cool, it is wrong.
 **Label/Mono Font:** ui-monospace stack (`SF Mono`, `Cascadia Code`, `JetBrains Mono`)
 
 **Character:** Terminal-first. The loud display face is signage and nothing else — the site name
-(`.pixel-name`), section headings (`.pixel-window__title`) and the routed page/article `h1`. Every
+(`.pixel-name`), section headings (`.pixel-window__title`) and the inline blog article title. Every
 other title, label, statistic numeral and body word uses the technical sans with weight and size
 doing the hierarchy. Monospace appears only where the interface is showing data: tool ranks,
 scores, model ids, and inline code.
 
 ### Hierarchy
 
-- **Display** (400, `clamp(1.75rem, 4vw, 2.5rem)`, 1.15): The name, section headings, and the
-  routed page/article `h1`. Always warm-bone or marquee-yellow, often with a hard text shadow.
+- **Display** (400, `clamp(1.75rem, 4vw, 2.5rem)`, 1.15): The name and section headings. The
+  inline blog article title keeps the display face at section-heading scale. Always warm-bone or
+  marquee-yellow, often with a hard text shadow.
 - **Section heading** (400, `1.5rem`, 1.2, display face): `.pixel-window__title` — the only
   heading role that keeps the display face.
 - **Card / group title** (700, `1.25rem`–`1.5rem`, body face): project titles, statistics group
@@ -205,7 +206,8 @@ No text is set below `--type-micro` (`0.75rem` / 12px).
 
 ### Named Rules
 
-**The Signage-Only Rule.** Bungee Spice appears only on the site name and section/page headings. It
+**The Signage-Only Rule.** Bungee Spice appears only on the site name, section headings and the
+inline blog article title. It
 never sets a card title, a statistic value, a status bar or a sentence of body copy. When in doubt,
 the technical sans wins.
 
@@ -308,9 +310,8 @@ softness as a `clip-path` chamfer instead.
 ### Navigation
 
 - **Section heading row (`.pixel-window__bar--static`):** A full-width, non-interactive row —
-  display-font heading on the left, optional crumb or back-link on the right. It is a `<div>` with
-  an `<h2>`, never a `<button>`: no `aria-expanded`, no `aria-controls`, no toggle.
-- **Page back-link (`.pixel-link-btn`):** Top-right `← Blog` / `← Home` on routed pages.
+  display-font heading on the left. It is a `<div>` with an `<h2>`, never a `<button>`: no
+  `aria-expanded`, no `aria-controls`, no toggle.
 - **Contact links (`.pixel-contact__link`):** Icon + label, body font; hover nudges `2px` right and
   tints (orange for LinkedIn, amber for GitHub).
 - **Inline links (`.pixel-link`):** Amber text with a dashed orange underline, brightening on hover.

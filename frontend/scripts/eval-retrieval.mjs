@@ -61,14 +61,14 @@ const AUTO_STUB = {
     getSiteContent: () => Promise.resolve(''),
     listContentItems: () => [
       { id: 'about', title: 'About', description: '', kind: 'section', section: 'about' },
-      { id: 'projects', title: 'Projects', description: '', kind: 'page', section: 'projects' },
+      { id: 'projects', title: 'Projects', description: '', kind: 'section', section: 'projects' },
       { id: 'contact', title: 'Contact', description: '', kind: 'section', section: 'contact' },
       { id: 'blog', title: 'Blog', description: '', kind: 'section', section: 'blog' },
       {
         id: 'blog:chat-with-my-website',
         title: 'Chat with my website',
         description: '',
-        kind: 'page',
+        kind: 'article',
         section: 'blog',
         slug: 'chat-with-my-website',
       },

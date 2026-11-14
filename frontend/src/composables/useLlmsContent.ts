@@ -1,7 +1,7 @@
 import { aboutMeMarkdown, siteData } from '../data/siteData'
 import type { SectionId } from './useSiteLayout'
 
-export type ContentKind = 'section' | 'page'
+export type ContentKind = 'section' | 'article'
 
 export interface ContentItem {
   id: string
@@ -71,8 +71,8 @@ const SECTION_ITEMS: ContentItem[] = [
   {
     id: 'projects',
     title: 'Projects',
-    description: 'Open-source projects like MUCGPT, on their own page',
-    kind: 'page',
+    description: 'Open-source projects like MUCGPT, in the Projects section',
+    kind: 'section',
     section: 'projects',
   },
   {
@@ -104,7 +104,7 @@ export function listContentItems(): ContentItem[] {
       id: `blog:${post.slug}`,
       title: post.title,
       description: post.teaser,
-      kind: 'page',
+      kind: 'article',
       section: 'blog',
       slug: post.slug,
     }),

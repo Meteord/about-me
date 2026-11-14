@@ -9,7 +9,6 @@ import AssistantLauncher from './AssistantLauncher.vue'
 import BlogSection from './BlogSection.vue'
 import ContactSection from './ContactSection.vue'
 import ProjectsSection from './ProjectsSection.vue'
-import StatsBand from './StatsBand.vue'
 
 const { state, isVisible } = useSiteLayout()
 const { disposeDecide, disposeVector } = useChatSession()
@@ -28,14 +27,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-column">
-    <template v-if="isVisible('about')">
-      <AboutIntro />
-      <AboutSection />
-    </template>
-
-    <StatsBand />
+    <AboutIntro v-if="isVisible('about')" />
 
     <AiShowcase v-if="state.showcaseVisible" />
+
+    <AboutSection v-if="isVisible('about')" />
 
     <BlogSection v-if="isVisible('blog')" />
     <ProjectsSection v-if="isVisible('projects')" />

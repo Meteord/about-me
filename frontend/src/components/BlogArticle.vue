@@ -1,0 +1,343 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { formatBlogDate } from '../composables/useBlogDate'
+import { useReveal } from '../composables/useReveal'
+import { useSiteLayout } from '../composables/useSiteLayout'
+import { siteData, type BlogPost, type TechModel } from '../data/siteData'
+import { evalResults, formatLatency, type ModeAggregate } from '../data/evalResults'
+import EvalComparison from './EvalComparison.vue'
+
+const pct = (value: number): string => `${Math.round(value * 100)}%`
+const formatGeneratedAt = (iso: string): string =>
+  new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+const props = defineProps<{ post: BlogPost }>()
+
+const { state } = useSiteLayout()
+
+const root = ref<HTMLElement | null>(null)
+const articleId = computed(() => `blog-${props.post.slug}`)
+const titleId = computed(() => `${articleId.value}-title`)
+
+const stepVariants = ['model-card__step--amber', 'model-card__step--orange']
+const chipVariants = ['pixel-chip--amber', 'pixel-chip--orange']
+const steps = ['01', '02'] as const
+
+const techCards = computed<{ model: TechModel; index: number }[]>(() => {
+  const retriever = siteData.tech.find((m) => m.icon === 'funnel')
+  const chat = siteData.tech.find((m) => m.icon === 'chip')
+  return [retriever, chat]
+    .filter((m): m is TechModel => Boolean(m))
+    .map((model, index) => ({ model, index }))
+})
+
+const evalAggregate = computed(() => {
+  const { modes } = evalResults
+  if (!modes.length) return null
+  const mean = (key: keyof ModeAggregate): number =>
+    modes.reduce((acc, mode) => acc + (mode[key] as number), 0) / modes.length
+  const latencies = modes.map((mode) => mode.meanLatencyMs)
+  const minLatency = formatLatency(Math.min(...latencies))
+  const maxLatency = formatLatency(Math.max(...latencies))
+  return {
+    retrievalHitRate: mean('retrievalHitRate'),
+    injectionCoverRate: mean('injectionCoverRate'),
+    actionPassRate: mean('actionPassRate'),
+    passRate: mean('passRate'),
+    latencyRange: minLatency === maxLatency ? minLatency : `${minLatency}–${maxLatency}`,
+  }
+})
+
+const diagramSvg = ref('')
+const diagramFailed = ref(false)
+const diagramLabel =
+  "Request flow: you ask a question, the content retriever ranks the site's sources by BM25 and vector search, the top sources are injected into the context, and Mini-Michi streams a single-pass answer. Theme changes are applied directly by the retriever."
+
+let diagramStarted = false
+
+/** The article is always in the DOM now, so only pull mermaid in when it is read. */
+async function renderDiagram(): Promise<void> {
+  if (diagramStarted) return
+  diagramStarted = true
+
+  try {
+    const { default: mermaid } = await import('mermaid')
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'base',
+      themeVariables: {
+        background: 'transparent',
+        primaryColor: '#2a2118',
+        primaryTextColor: '#f6efe4',
+        primaryBorderColor: '#4a3f32',
+        lineColor: '#fbbf24',
+        secondaryColor: '#201a13',
+        tertiaryColor: '#171310',
+        edgeLabelBackground: '#201a13',
+        edgeLabelColor: '#f6efe4',
+        fontFamily: 'var(--font-body)',
+      },
+      flowchart: { curve: 'step' },
+    })
+    const { svg } = await mermaid.render(
+      `mm-request-flow-${props.post.slug}`,
+      `flowchart LR
+      A["You<br/>ask a question"] --> B["Content retriever<br/>BM25 + vector · top-k"]
+      B --> C["Mini-Michi<br/>LFM2.5-350M<br/>context injection"]
+      C --> D["Reply<br/>streamed tokens"]
+      B -. "theme request" .-> E["Apply action<br/>directly"]`,
+    )
+    diagramSvg.value = svg
+  } catch {
+    diagramFailed.value = true
+  }
+}
+
+// No `reveal` class: the section handles the entrance animation, and this
+// observer only decides when the diagram is close enough to load.
+useReveal(root, {
+  key: `blog-article:${props.post.slug}`,
+  threshold: 0,
+  rootMargin: '200px 0px 0px 0px',
+  onReveal: () => {
+    void renderDiagram()
+  },
+})
+</script>
+
+<template>
+  <article
+    ref="root"
+    :id="articleId"
+    class="blog-article"
+    :class="{ 'pixel-spotlight': state.spotlight === articleId }"
+    :aria-labelledby="titleId"
+  >
+    <div class="blog-post__head">
+      <img
+        src="/mm.webp"
+        alt=""
+        aria-hidden="true"
+        width="56"
+        height="56"
+        class="pixel-avatar blog-post__avatar"
+      />
+      <div class="blog-post__head-text">
+        <h3 :id="titleId" class="blog-post__title">
+          {{ post.title
+          }}<span class="pixel-msg__cursor blog-post__cursor" aria-hidden="true"></span>
+        </h3>
+        <p class="blog-post__tape">
+          <time class="blog-post__date" :datetime="post.date">{{ formatBlogDate(post.date) }}</time>
+          <span class="pixel-chip pixel-chip--orange">{{ post.readTime }} read</span>
+          <span class="pixel-chip pixel-chip--amber">100% on-device</span>
+        </p>
+      </div>
+    </div>
+    <p class="tech-how__lead blog-post__lead">
+      This page has no backend — everything runs on-device in your browser. Mini-Michi is a small
+      language model streamed over WebGPU or WebAssembly, and before each reply a retrieval step
+      picks the most relevant content sources and injects them into the context, so the model only
+      ever reads what it needs. Theme changes are applied directly by the retriever.
+    </p>
+
+    <h4 class="blog-post__subhead">
+      <span class="pixel-chip pixel-chip--amber">The flow</span>
+      <span class="blog-post__subhead-rule" aria-hidden="true"></span>
+    </h4>
+    <div class="blog-flow" aria-live="polite">
+      <div
+        v-if="diagramSvg"
+        class="blog-flow__diagram"
+        role="img"
+        :aria-label="diagramLabel"
+        tabindex="0"
+        v-html="diagramSvg"
+      ></div>
+      <div v-else-if="diagramFailed" class="blog-flow__diagram blog-flow__diagram--fallback">
+        <p class="blog-flow__fallback">
+          <span class="blog-flow__fallback-kicker"
+            >The diagram couldn't render, but here's the flow:</span
+          >
+          You ask a question → Content retriever (BM25 + vector · top-k) → the top sources are
+          injected into the context → Mini-Michi (LFM2.5-350M) streams a single-pass reply. Theme
+          requests skip the model and are applied directly by the retriever.
+        </p>
+      </div>
+      <div v-else class="blog-flow__diagram blog-flow__diagram--loading">
+        <span class="blog-flow__loading" aria-hidden="true">rendering diagram…</span>
+      </div>
+      <span class="tech-diagram__note">no data leaves your browser · 100% on-device</span>
+    </div>
+
+    <h4 class="blog-post__subhead">
+      <span class="pixel-chip pixel-chip--amber">The models</span>
+      <span class="blog-post__subhead-rule" aria-hidden="true"></span>
+    </h4>
+    <div class="model-flow">
+      <template v-for="card in techCards" :key="card.model.name">
+        <article class="model-card">
+          <span class="model-card__watermark" aria-hidden="true">{{
+            steps[card.index % steps.length]
+          }}</span>
+          <div class="model-card__head">
+            <div class="model-card__head-row">
+              <span
+                class="model-card__step"
+                :class="stepVariants[card.index % stepVariants.length]"
+                >{{ steps[card.index % steps.length] }}</span
+              >
+              <svg
+                class="tech-diagram__icon model-card__icon"
+                viewBox="0 0 16 16"
+                width="24"
+                height="24"
+                shape-rendering="crispEdges"
+                aria-hidden="true"
+              >
+                <path
+                  v-if="card.model.icon === 'chip'"
+                  d="M5 5h6v6H5zM6 2h1v2H6zM9 2h1v2H9zM6 12h1v2H6zM9 12h1v2H9zM2 6h2v1H2zM2 9h2v1H2zM12 6h2v1h-2zM12 9h2v1h-2z"
+                  fill="currentColor"
+                />
+                <template v-else>
+                  <path d="M1 1h14v3l-5 4v7H6V8L1 4z" fill="currentColor" />
+                </template>
+              </svg>
+            </div>
+            <h5 class="model-card__title">{{ card.model.name }}</h5>
+          </div>
+          <p class="model-card__desc">{{ card.model.description }}</p>
+          <p v-if="card.model.icon === 'funnel'" class="model-card__gloss">
+            BM25 = keyword match · vector = meaning match · hybrid = both
+          </p>
+          <div class="pixel-tags model-card__tags">
+            <span
+              v-for="tag in card.model.tags"
+              :key="tag"
+              class="pixel-chip"
+              :class="chipVariants[card.index % chipVariants.length]"
+              >{{ tag }}</span
+            >
+          </div>
+          <a
+            :href="card.model.link"
+            target="_blank"
+            rel="noopener"
+            class="pixel-link-btn model-card__link"
+          >
+            View
+          </a>
+        </article>
+        <span v-if="card.index < techCards.length - 1" class="model-arrow" aria-hidden="true"
+          >→</span
+        >
+      </template>
+    </div>
+
+    <h4 class="blog-post__subhead">
+      <span class="pixel-chip pixel-chip--amber">Links</span>
+      <span class="blog-post__subhead-rule" aria-hidden="true"></span>
+    </h4>
+    <ul class="pixel-list blog-post__links">
+      <li v-for="link in siteData.articleLinks" :key="link.url">
+        <a :href="link.url" target="_blank" rel="noopener" class="pixel-link">{{ link.label }}</a>
+        — {{ link.description }}
+      </li>
+    </ul>
+
+    <h4 class="blog-post__subhead">
+      <span class="pixel-chip pixel-chip--amber">The eval</span>
+      <span class="blog-post__subhead-rule" aria-hidden="true"></span>
+    </h4>
+    <h5 class="blog-post__eval-question">How well do retrieval and actions actually work?</h5>
+    <div id="eval-results" class="eval-results">
+      <template v-if="evalResults.fixtures.total > 0">
+        <p class="eval-results__meta">
+          The numbers below come from a real run of the on-device retrieval and action step —
+          ranking candidate sources, injecting the top matches into the context budget, or firing a
+          theme change directly.
+        </p>
+        <p class="eval-results__meta">
+          Generated
+          <time :datetime="evalResults.generatedAt">{{
+            formatGeneratedAt(evalResults.generatedAt)
+          }}</time>
+          · {{ evalResults.config.device }} · top-{{ evalResults.config.topK }} · ≤
+          {{ evalResults.config.maxInjectChars }} chars injected.
+        </p>
+        <p class="eval-results__legend">
+          hit@{{ evalResults.config.topK }} — an expected source or action lands in the top
+          {{ evalResults.config.topK }} · injection cover — the expected content source fits into
+          the injected context budget · action pass — theme requests fire the expected theme without
+          misfiring on normal questions · avg time — mean retrieval and action decision time per
+          query.
+        </p>
+
+        <EvalComparison :results="evalResults" />
+
+        <aside class="eval-takeaway">
+          <h5 class="eval-takeaway__title">What this tells us</h5>
+          <p class="eval-takeaway__text" v-if="evalAggregate">
+            Retrieval finds the expected source ({{ pct(evalAggregate.retrievalHitRate) }} hit@{{
+              evalResults.config.topK
+            }}), fits it into the context budget ({{
+              pct(evalAggregate.injectionCoverRate)
+            }}
+            injection cover), and triggers direct theme changes ({{
+              pct(evalAggregate.actionPassRate)
+            }}
+            action pass) in {{ evalAggregate.latencyRange }} per query —
+            {{ pct(evalAggregate.passRate) }} of runs pass overall.
+          </p>
+        </aside>
+
+        <div v-if="evalResults.traces" class="eval-traces">
+          <h5 class="eval-traces__title">Runtime traces</h5>
+          <p class="eval-traces__meta">
+            {{ evalResults.traces.count }}
+            saved session{{ evalResults.traces.count === 1 ? '' : 's' }} scored historically ({{
+              evalResults.traces.mode
+            }}
+            · top-{{ evalResults.traces.topK }}).
+          </p>
+          <dl class="eval-traces__rates">
+            <div>
+              <dt>retrieval covered</dt>
+              <dd>{{ pct(evalResults.traces.retrievalCoverRate) }}</dd>
+            </div>
+            <div>
+              <dt>action valid</dt>
+              <dd>{{ pct(evalResults.traces.actionValidRate) }}</dd>
+            </div>
+            <div>
+              <dt>pass</dt>
+              <dd>{{ pct(evalResults.traces.passRate) }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <p class="eval-results__footnote">
+          Nothing here is simulated — every number comes from a real run of the retriever, context
+          budget, and theme-action logic. To refresh it, run <code>npm run eval:chain</code> from
+          <code>frontend/</code>.
+        </p>
+      </template>
+      <p v-else class="eval-results__empty">
+        No evaluation results committed yet. Run <code>npm run eval:chain</code> from
+        <code>frontend/</code> to measure retrieval, context injection, and theme actions, and this
+        section will render the numbers.
+      </p>
+    </div>
+
+    <div class="blog-post__closer">
+      <span class="blog-post__closer-tag">Try it yourself</span>
+      <p class="blog-post__closer-text">
+        The thing this article describes is running on this page. Ask Mini-Michi in the chat section
+        (or from the launcher) what BM25 means or which sources are in context — the reply is
+        streamed to your browser by LFM2.5-350M.
+      </p>
+    </div>
+  </article>
+</template>

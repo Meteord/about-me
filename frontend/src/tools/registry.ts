@@ -124,7 +124,8 @@ export const SOURCE_DEFS: SourceDef[] = [
     kind: 'content',
     title: 'Projects',
     section: 'projects',
-    description: "Michael's open-source projects, like MUCGPT, on their own page.",
+    description:
+      "Michael's open-source projects, like MUCGPT, in the Projects section on this page.",
     aliases: [
       'projects',
       'project',

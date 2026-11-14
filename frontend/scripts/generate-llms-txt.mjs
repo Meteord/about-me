@@ -36,7 +36,7 @@ Running, Cycling, Walking with my dog
 
 const projectsMd = `# Projects
 
-Michael's open-source projects live on their own page on this site (\`#/projects\`), reachable from the "Projects" window on the home desktop via the "All projects" link.
+Michael's open-source projects live in the Projects section of his single-page site (\`#projects\`); every project and its technology stack is shown inline.
 
 ## MUCGPT
 
