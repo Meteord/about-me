@@ -1,7 +1,9 @@
 import { ref } from 'vue'
 import type { RetrievalMode } from './useToolRetrieval'
 
-export const mode = ref<RetrievalMode>('hybrid')
+/** The mode the site ships with — a statistic uses this, never the visitor's pick. */
+export const DEFAULT_RETRIEVAL_MODE: RetrievalMode = 'hybrid'
+
+export const mode = ref<RetrievalMode>(DEFAULT_RETRIEVAL_MODE)
 export const topK = ref(5)
-export const toolSelectorOpen = ref(false)
 export const sampling = ref(false)

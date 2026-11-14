@@ -158,7 +158,7 @@ export const siteData = {
       title: 'Chat with my website',
       date: '2026-09-20',
       teaser:
-        'How Mini-Michi, the on-device assistant in the dock, runs a real language model in your browser — and why it only ever reads the content sources it actually needs.',
+        'How Mini-Michi, the on-device assistant on this page, runs a real language model in your browser — and why it only ever reads the content sources it actually needs.',
       readTime: '3 min',
     },
   ] as BlogPost[],

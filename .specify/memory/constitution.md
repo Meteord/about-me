@@ -3,21 +3,24 @@
 <!--
   SYNC IMPACT REPORT
   ==================
-  Version change: (none — initial ratification) → 1.0.0
-  Modified principles: (initial draft, 6 principles)
-    - I. Client-Only & On-Device (new)
-    - II. Static Single-Page Simplicity (new)
-    - III. Verify Before Ship (new)
-    - IV. Pixel-Theme Fidelity (new)
-    - V. Accessibility & Motion Safety (new)
-    - VI. Retrieval-Ready Content (new)
-  Added sections:
-    - Technology & Deployment Constraints
-    - Development Workflow & Quality Gates
-    - Governance
+  Version change: 1.0.0 → 1.1.0
+  Modified principles:
+    - II. Static Single-Page Simplicity: "new views MUST be collapsible pixel-window
+      sections" → "new views MUST be always-open pixel-window sections composed in
+      HomePage.vue/App.vue"; visitor-facing collapse controls are forbidden
+      (spec 007 FR-001/FR-004/FR-021, plan.md Constitution Check).
+    - V. Accessibility & Motion Safety: `aria-controls` + `aria-expanded` moved from
+      section toggles to the remaining disclosure controls (technical-details
+      disclosure, assistant launcher); static section headings carry neither
+      (spec 007 FR-001/FR-009/FR-010, plan.md Constitution Check).
+  Clarified (no semantic change):
+    - VI. Retrieval-Ready Content: `SECTION_LABEL` now lives in
+      `src/composables/useChatSession.ts` (was `AiSection.vue`, removed by spec 007).
+  Added sections: (none)
   Removed sections: (none)
-  Follow-up TODOs: none — all placeholders resolved from repo context.
-  Note: This report is scratch material for human review; remove before committing.
+  Follow-up TODOs: none.
+  Bump rationale: MINOR — material guidance change to two principles; no principle
+  removed and no NON-NEGOTIABLE guarantee weakened.
 -->
 
 ## Core Principles
@@ -34,11 +37,15 @@ would break the deployment model and leak credentials.
 ### II. Static Single-Page Simplicity
 
 The app MUST remain a single-page Vue 3 application with no router, living
-entirely in `frontend/` and built with Vite. New views MUST be collapsible
-pixel-window sections in `App.vue`, not routes. Start simple (YAGNI): no state
-libraries, no SSR, no server rendering unless a constitution amendment changes
-this. Rationale: the page is a personal about-me; routing and extra frameworks
-add complexity with no benefit.
+entirely in `frontend/` and built with Vite. New views MUST be always-open
+pixel-window sections composed in `HomePage.vue`/`App.vue`, not routes: every
+section's content is readable with zero clicks, and no visitor-facing
+collapse/expand control may be added. Assistants/tools may hide or show a
+section, but MUST NOT require an expand action to read it. Start simple (YAGNI):
+no state libraries, no SSR, no server rendering unless a constitution amendment
+changes this. Rationale: the page is a personal about-me; routing and extra
+frameworks add complexity with no benefit, and content hidden behind toggles
+defeats the page's purpose.
 
 ### III. Verify Before Ship (NON-NEGOTIABLE)
 
@@ -63,20 +70,23 @@ pixel-art CRT identity is the product's core design contract.
 ### V. Accessibility & Motion Safety
 
 Interactive components MUST preserve existing accessibility conventions:
-`:focus-visible` outlines, `aria-controls` + `:aria-expanded` on section toggles,
-`prefers-reduced-motion` handling, and `text-wrap: pretty`. New components MUST
-be checked at the `@media (max-width: 480px)` breakpoint. Rationale: the site is
-public-facing; keyboard users and reduced-motion users MUST not regress.
+`:focus-visible` outlines, `aria-controls` + `aria-expanded` on every remaining
+disclosure control (the technical-details disclosure and the assistant launcher;
+static section headings carry neither), `prefers-reduced-motion` handling, and
+`text-wrap: pretty`. New components MUST be checked at the
+`@media (max-width: 480px)` breakpoint. Rationale: the site is public-facing;
+keyboard users and reduced-motion users MUST not regress, and `aria-expanded`
+MUST describe a real disclosure rather than a decorative heading.
 
 ### VI. Retrieval-Ready Content
 
 All user-visible facts about Michael MUST be retrievable by the on-device AI:
 `about_site` reads `public/llms/*.md` (regenerated via `npm run generate:llms`),
 and `about_me` reads topics from `src/data/siteData.ts`. When adding a section or
-changing content, the tool registry (`src/tools/registry.ts`: `TOOL_SCHEMAS`,
-`TOPIC_SECTION`, `TOOL_GUIDE`), `SECTION_LABEL` (AiSection.vue), the
-`public/llms/<id>.md` set, and the retrieval eval fixtures
-(`scripts/eval-fixtures.mjs`) MUST be kept in sync. Rationale: stale registry or
+changing content, the tool registry (`src/tools/registry.ts`: `SOURCE_DEFS`,
+`SOURCE_DEFS.section`, `getSourceDocs`, `decideAction`), `SECTION_LABEL`
+(`src/composables/useChatSession.ts`), the `public/llms/<id>.md` set, and the
+retrieval eval fixtures (`scripts/eval-fixtures.mjs`) MUST be kept in sync. Rationale: stale registry or
 llms content silently breaks the AI chat demo, which is half the product.
 
 ## Technology & Deployment Constraints
@@ -99,8 +109,9 @@ llms content silently breaks the AI chat demo, which is half the product.
 - Verify order: `lint` → `build`. No test suite exists
   (`src/**/__tests__/*` excluded from tsconfig).
 - Adding a section requires touching every listed integration point (see
-  AGENTS.md checklist: layout ids, App.vue map, section component, registry
-  enums/guide, SECTION_LABEL, llms file, retrieval fixtures).
+  AGENTS.md checklist: layout ids, `HomePage.vue` composition and band
+  visibility, section component, `SOURCE_DEFS`, `SECTION_LABEL`, llms file,
+  retrieval fixtures).
 - Formatting style: prettier no semicolons, single quotes, printWidth 100.
 - `npm run eval:retrieval` MUST pass (no misses) when tool docs or retrieval
   modes change; extend `eval-fixtures.mjs` when adding tools.
@@ -117,4 +128,4 @@ llms content silently breaks the AI chat demo, which is half the product.
   respect the design and accessibility rules (Principles IV–V); complexity MUST
   be justified against Principle II.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-20 | **Last Amended**: 2026-09-20
+**Version**: 1.1.0 | **Ratified**: 2026-09-20 | **Last Amended**: 2026-11-13

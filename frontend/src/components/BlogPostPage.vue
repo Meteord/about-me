@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { homeHref } from '../composables/useHashRoute'
 import { formatBlogDate } from '../composables/useBlogDate'
 import { siteData, type TechModel } from '../data/siteData'
-import { useBlogAnimation } from '../composables/useBlogAnimation'
+import { useReveal } from '../composables/useReveal'
 import { evalResults, formatLatency, type ModeAggregate } from '../data/evalResults'
 import EvalComparison from './EvalComparison.vue'
 
@@ -11,13 +11,13 @@ const pct = (value: number): string => `${Math.round(value * 100)}%`
 const formatGeneratedAt = (iso: string): string =>
   new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
+const props = defineProps<{ slug: string }>()
+
 const articleRef = ref<HTMLElement | null>(null)
-useBlogAnimation(articleRef)
+useReveal(articleRef, { key: `blog-post:${props.slug}` })
 const stepVariants = ['model-card__step--amber', 'model-card__step--orange']
 const chipVariants = ['pixel-chip--amber', 'pixel-chip--orange']
 const steps = ['01', '02'] as const
-
-const props = defineProps<{ slug: string }>()
 
 const post = computed(() => siteData.blog.find((entry) => entry.slug === props.slug))
 
@@ -97,15 +97,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article
-    v-if="post"
-    ref="articleRef"
-    tabindex="-1"
-    class="pixel-window blog-post fade-in-section"
-  >
+  <article v-if="post" ref="articleRef" tabindex="-1" class="pixel-window blog-post reveal">
     <div class="pixel-window__bar pixel-window__bar--static">
-      <span class="pixel-window__title blog-post__crumb">Blog</span>
-      <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="pixel-window__crumb blog-post__crumb">Blog</span>
       <a :href="homeHref()" class="pixel-link-btn blog-post__back">← Home</a>
     </div>
     <div class="pixel-window__content pixel-window__content--open blog-post__body">
@@ -119,11 +113,11 @@ onBeforeUnmount(() => {
           class="pixel-avatar blog-post__avatar"
         />
         <div class="blog-post__head-text">
-          <h1 class="blog-post__title" data-anim="title">
+          <h1 class="blog-post__title">
             {{ post.title
             }}<span class="pixel-msg__cursor blog-post__cursor" aria-hidden="true"></span>
           </h1>
-          <p class="blog-post__tape" data-anim="meta">
+          <p class="blog-post__tape">
             <time class="blog-list__date" :datetime="post.date">{{
               formatBlogDate(post.date)
             }}</time>
@@ -132,18 +126,18 @@ onBeforeUnmount(() => {
           </p>
         </div>
       </div>
-      <p class="tech-how__lead blog-post__lead" data-anim="lead">
+      <p class="tech-how__lead blog-post__lead">
         This page has no backend — everything runs on-device in your browser. Mini-Michi is a small
         language model streamed over WebGPU or WebAssembly, and before each reply a retrieval step
         picks the most relevant content sources and injects them into the context, so the model only
         ever reads what it needs. Theme changes are applied directly by the retriever.
       </p>
 
-      <h2 class="blog-post__subhead" data-anim="card">
+      <h2 class="blog-post__subhead">
         <span class="pixel-chip pixel-chip--amber">The flow</span>
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
-      <div class="blog-flow" data-anim="card" aria-live="polite">
+      <div class="blog-flow" aria-live="polite">
         <div
           v-if="diagramSvg"
           class="blog-flow__diagram"
@@ -168,13 +162,13 @@ onBeforeUnmount(() => {
         <span class="tech-diagram__note">no data leaves your browser · 100% on-device</span>
       </div>
 
-      <h2 class="blog-post__subhead" data-anim="card">
+      <h2 class="blog-post__subhead">
         <span class="pixel-chip pixel-chip--amber">The models</span>
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
       <div class="model-flow">
         <template v-for="card in techCards" :key="card.model.name">
-          <article class="model-card" data-anim="card">
+          <article class="model-card">
             <span class="model-card__watermark" aria-hidden="true">{{
               steps[card.index % steps.length]
             }}</span>
@@ -233,25 +227,23 @@ onBeforeUnmount(() => {
         </template>
       </div>
 
-      <h2 class="blog-post__subhead" data-anim="card">
+      <h2 class="blog-post__subhead">
         <span class="pixel-chip pixel-chip--amber">Links</span>
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
-      <ul class="pixel-list blog-post__links" data-anim="card">
+      <ul class="pixel-list blog-post__links">
         <li v-for="link in siteData.articleLinks" :key="link.url">
           <a :href="link.url" target="_blank" rel="noopener" class="pixel-link">{{ link.label }}</a>
           — {{ link.description }}
         </li>
       </ul>
 
-      <h2 class="blog-post__subhead" data-anim="card">
+      <h2 class="blog-post__subhead">
         <span class="pixel-chip pixel-chip--amber">The eval</span>
         <span class="blog-post__subhead-rule" aria-hidden="true"></span>
       </h2>
-      <h3 class="blog-post__eval-question" data-anim="card">
-        How well do retrieval and actions actually work?
-      </h3>
-      <div class="eval-results" data-anim="card">
+      <h3 class="blog-post__eval-question">How well do retrieval and actions actually work?</h3>
+      <div id="eval-results" class="eval-results">
         <template v-if="evalResults.fixtures.total > 0">
           <p class="eval-results__meta">
             The numbers below come from a real run of the on-device retrieval and action step —
@@ -330,21 +322,20 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <div class="blog-post__closer" data-anim="card">
+      <div class="blog-post__closer">
         <span class="blog-post__closer-tag">Try it yourself</span>
         <p class="blog-post__closer-text">
-          The thing this article describes is running on this page. Ask Mini-Michi in the dock what
-          BM25 means or which sources are in context — the reply is streamed to your browser by
-          LFM2.5-350M.
+          The thing this article describes is running on this page. Ask Mini-Michi in the chat
+          section (or from the launcher) what BM25 means or which sources are in context — the reply
+          is streamed to your browser by LFM2.5-350M.
         </p>
       </div>
     </div>
   </article>
 
-  <div v-else ref="articleRef" tabindex="-1" class="pixel-window blog-post fade-in-section">
+  <div v-else ref="articleRef" tabindex="-1" class="pixel-window blog-post reveal">
     <div class="pixel-window__bar pixel-window__bar--static">
-      <span class="pixel-window__title blog-post__crumb">Blog</span>
-      <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="pixel-window__crumb blog-post__crumb">Blog</span>
       <a :href="homeHref()" class="pixel-link-btn blog-post__back">← Home</a>
     </div>
     <div class="pixel-window__content pixel-window__content--open">

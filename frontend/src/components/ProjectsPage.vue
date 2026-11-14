@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useReveal } from '../composables/useReveal'
 import { homeHref } from '../composables/useHashRoute'
 import { siteData } from '../data/siteData'
+
+const root = ref<HTMLElement | null>(null)
+useReveal(root, { key: 'projects-page' })
 </script>
 
 <template>
-  <article class="pixel-window projects-page fade-in-section">
+  <article ref="root" class="pixel-window projects-page reveal">
     <div class="pixel-window__bar pixel-window__bar--static">
-      <span class="pixel-window__title projects-page__crumb">Projects</span>
-      <span class="pixel-window__chrome" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="pixel-window__crumb projects-page__crumb">Projects</span>
       <a :href="homeHref()" class="pixel-link-btn projects-page__back">← Home</a>
     </div>
     <div class="pixel-window__content pixel-window__content--open projects-page__body">

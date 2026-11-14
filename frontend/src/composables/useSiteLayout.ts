@@ -4,17 +4,19 @@ export type SectionId = 'about' | 'blog' | 'projects' | 'contact'
 export type ThemeName = 'amber' | 'orange' | 'red'
 export type ZoomLevel = 'compact' | 'normal' | 'comfortable'
 
+/** A band of the home page. Sections are never collapsed or reordered — the
+    composition is fixed in `HomePage.vue`; only an assistant action may hide
+    or show one (spec 007 FR-021). */
 export interface SectionState {
   id: SectionId
-  expanded: boolean
   visible: boolean
 }
 
 export const DEFAULT_SECTIONS: SectionState[] = [
-  { id: 'about', expanded: true, visible: true },
-  { id: 'blog', expanded: false, visible: true },
-  { id: 'projects', expanded: false, visible: true },
-  { id: 'contact', expanded: false, visible: true },
+  { id: 'about', visible: true },
+  { id: 'blog', visible: true },
+  { id: 'projects', visible: true },
+  { id: 'contact', visible: true },
 ]
 
 export interface SiteLayout {
@@ -23,6 +25,8 @@ export interface SiteLayout {
   highlight: SectionId | null
   spotlight: string | null
   zoom: ZoomLevel
+  /** Assistant-only: hides the AI showcase band. The launcher stays reachable. */
+  showcaseVisible: boolean
 }
 
 const state = reactive<SiteLayout>({
@@ -31,6 +35,7 @@ const state = reactive<SiteLayout>({
   highlight: null,
   spotlight: null,
   zoom: 'normal',
+  showcaseVisible: true,
 })
 
 const THEME_ORDER: ThemeName[] = ['amber', 'orange', 'red']
@@ -46,30 +51,10 @@ function findIndex(id: SectionId): number {
 }
 
 export interface FocusOptions {
-  collapseOthers?: boolean
   target?: string
 }
 
 export function useSiteLayout() {
-  const isExpanded = (id: SectionId): boolean =>
-    state.sections.find((section) => section.id === id)?.expanded ?? false
-
-  const toggle = (id: SectionId): void => {
-    const index = findIndex(id)
-    if (index !== -1) state.sections[index].expanded = !state.sections[index].expanded
-  }
-
-  const setExpanded = (id: SectionId, expanded: boolean): void => {
-    const index = findIndex(id)
-    if (index !== -1) state.sections[index].expanded = expanded
-  }
-
-  const setAllExpanded = (expanded: boolean): void => {
-    state.sections.forEach((section) => {
-      section.expanded = expanded
-    })
-  }
-
   const isVisible = (id: SectionId): boolean =>
     state.sections.find((section) => section.id === id)?.visible ?? true
 
@@ -78,33 +63,11 @@ export function useSiteLayout() {
     if (index !== -1) state.sections[index].visible = visible
   }
 
+  /** Presence only — page order is fixed by `HomePage.vue`. */
   const visibleSections = (): SectionState[] => state.sections.filter((section) => section.visible)
 
-  const moveSection = (id: SectionId, direction: 'up' | 'down'): boolean => {
-    const index = findIndex(id)
-    if (index === -1) return false
-    const target = direction === 'up' ? index - 1 : index + 1
-    if (target < 0 || target >= state.sections.length) return false
-    const [section] = state.sections.splice(index, 1)
-    state.sections.splice(target, 0, section)
-    return true
-  }
-
-  const moveSectionTo = (id: SectionId, position: number | 'top' | 'bottom'): boolean => {
-    const index = findIndex(id)
-    if (index === -1) return false
-    const raw =
-      position === 'top' ? 0 : position === 'bottom' ? state.sections.length - 1 : position
-    const clamped = Math.max(0, Math.min(state.sections.length - 1, raw))
-    const [section] = state.sections.splice(index, 1)
-    state.sections.splice(clamped, 0, section)
-    return true
-  }
-
-  const resetLayout = (): void => {
-    state.sections = DEFAULT_SECTIONS.map((section) => ({ ...section }))
-    state.zoom = 'normal'
-    syncDocument()
+  const setShowcaseVisible = (visible: boolean): void => {
+    state.showcaseVisible = visible
   }
 
   const setTheme = (theme: ThemeName): void => {
@@ -126,34 +89,10 @@ export function useSiteLayout() {
   const reducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  const scrollPage = (position: 'top' | 'bottom'): void => {
-    window.scrollTo({
-      top: position === 'top' ? 0 : document.documentElement.scrollHeight,
-      behavior: reducedMotion ? 'auto' : 'smooth',
-    })
-  }
-
-  const flashSection = (id: SectionId): void => {
-    state.highlight = id
-    window.setTimeout(() => {
-      if (state.highlight === id) state.highlight = null
-    }, 700)
-  }
-
-  const clearSpotlight = (): void => {
-    state.spotlight = null
-  }
-
+  /** Scroll to a section (or sub-block) and spotlight it. Never expands,
+      collapses or reorders anything — every band is already open. */
   const focusSection = (id: SectionId, options: FocusOptions = {}): void => {
-    const { collapseOthers = false, target } = options
-    if (collapseOthers) {
-      state.sections.forEach((section) => {
-        section.expanded = section.id === id
-      })
-    } else {
-      const index = findIndex(id)
-      if (index !== -1) state.sections[index].expanded = true
-    }
+    const { target } = options
 
     state.highlight = id
     if (target) state.spotlight = target
@@ -169,7 +108,7 @@ export function useSiteLayout() {
     window.setTimeout(
       () => {
         if (state.highlight === id) state.highlight = null
-        if (target && state.spotlight === target) clearSpotlight()
+        if (target && state.spotlight === target) state.spotlight = null
       },
       target ? 1400 : 700,
     )
@@ -179,22 +118,13 @@ export function useSiteLayout() {
 
   return {
     state,
-    isExpanded,
-    toggle,
-    setExpanded,
-    setAllExpanded,
     isVisible,
     setVisible,
     visibleSections,
-    moveSection,
-    moveSectionTo,
-    resetLayout,
+    setShowcaseVisible,
     setTheme,
     cycleTheme,
     setZoom,
-    scrollPage,
-    flashSection,
     focusSection,
-    clearSpotlight,
   }
 }

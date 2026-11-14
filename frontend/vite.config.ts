@@ -9,6 +9,11 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 export default defineConfig({
   plugins: [vue(), vueJsx(), vueDevTools()],
   base: '/about-me/',
+  // Build-time constant: the only time input for the statistics band
+  // (src/data/siteStats.ts). Baked in at build, never read in the browser.
+  define: {
+    __BUILD_YEAR__: new Date().getFullYear(),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
