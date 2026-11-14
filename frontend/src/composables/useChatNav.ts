@@ -93,7 +93,7 @@ function contentSources(rows: ToolScore[]): ScoredSource[] {
   return sources
 }
 
-/** The four top-level bands, shown for an index-style ("what can you do?") query. */
+/** The five top-level bands, shown for an index-style ("what can you do?") query. */
 function sectionDestinations(): NavDestination[] {
   return SECTION_LINKS.flatMap((link) =>
     link.anchor ? [{ label: link.label, anchor: link.anchor }] : [],

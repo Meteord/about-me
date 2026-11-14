@@ -15,6 +15,7 @@ const items = computed<NavItem[]>(() => {
   if (isVisible('about')) list.push({ id: 'about', label: 'About' })
   if (state.showcaseVisible) list.push({ id: 'assistant', label: 'Chat' })
   if (isVisible('about')) list.push({ id: 'background', label: 'Background' })
+  if (isVisible('hobbies')) list.push({ id: 'hobbies', label: 'Hobbies' })
 
   if (isVisible('blog')) {
     list.push({ id: 'blog', label: 'Blog' })

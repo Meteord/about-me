@@ -23,12 +23,13 @@ const TOPIC_LABEL: Record<string, string> = {
 
 const SECTION_LINK: Record<string, { label: string; anchor: string }> = {
   about: { label: 'About', anchor: 'about' },
+  hobbies: { label: 'Hobbies', anchor: 'hobbies' },
   blog: { label: 'Blog', anchor: 'blog' },
   projects: { label: 'Projects', anchor: 'projects' },
   contact: { label: 'Contact', anchor: 'contact' },
 }
 
-/** The site's four top-level bands, for an index-style ("what can you do?") query. */
+/** The site's five top-level bands, for an index-style ("what can you do?") query. */
 export const SECTION_LINKS: SourceLink[] = Object.entries(SECTION_LINK).map(([name, link]) => ({
   name,
   label: link.label,

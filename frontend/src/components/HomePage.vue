@@ -9,6 +9,7 @@ import AiShowcase from './AiShowcase.vue'
 import AssistantLauncher from './AssistantLauncher.vue'
 import BlogSection from './BlogSection.vue'
 import ContactSection from './ContactSection.vue'
+import HobbiesSection from './HobbiesSection.vue'
 import ProjectsSection from './ProjectsSection.vue'
 import SectionNav from './SectionNav.vue'
 
@@ -18,7 +19,11 @@ const { disposeDecide, disposeVector } = useChatSession()
 /** Fixed editorial order — never data-driven (contract section-layout.md C1). */
 const noSectionVisible = computed(
   () =>
-    !isVisible('about') && !isVisible('blog') && !isVisible('projects') && !isVisible('contact'),
+    !isVisible('about') &&
+    !isVisible('hobbies') &&
+    !isVisible('blog') &&
+    !isVisible('projects') &&
+    !isVisible('contact'),
 )
 
 onBeforeUnmount(() => {
@@ -36,6 +41,8 @@ onBeforeUnmount(() => {
     <AiShowcase v-if="state.showcaseVisible" />
 
     <AboutSection v-if="isVisible('about')" />
+
+    <HobbiesSection v-if="isVisible('hobbies')" />
 
     <BlogSection v-if="isVisible('blog')" />
     <ProjectsSection v-if="isVisible('projects')" />

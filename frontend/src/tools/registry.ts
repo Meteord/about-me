@@ -101,7 +101,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     name: 'about_hobbies',
     kind: 'content',
     title: 'About — hobbies',
-    section: 'about',
+    section: 'hobbies',
     topic: 'hobbies',
     spotlight: 'hobbies',
     description:
@@ -220,7 +220,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     kind: 'content',
     title: 'Site index',
     description:
-      'An index of every piece of content on the site (About, Projects, Contact, Blog and each article).',
+      'An index of every piece of content on the site (About, Hobbies, Projects, Contact, Blog and each article).',
     aliases: [
       'what can you do',
       'what do you know',

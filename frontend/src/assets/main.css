@@ -684,8 +684,8 @@ section[id] {
   }
 }
 
-/* Education and skills share the top row; hobbies take a full-width row below,
-   so the dog profile has room for a wide portrait-and-facts strip. */
+/* Education and skills share the grid as two cards; the hobbies tracks live in
+   their own band below. */
 .about-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
@@ -711,18 +711,12 @@ section[id] {
   grid-row: 1;
 }
 
-.about-content #hobbies {
-  grid-column: 1 / -1;
-  grid-row: 2;
-}
-
 @media (max-width: 900px) {
   .about-content {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .about-content #education,
-  .about-content #hobbies,
   .about-content #skills {
     grid-column: 1;
     grid-row: auto;
@@ -753,12 +747,6 @@ section[id] {
   font-weight: 700;
   line-height: 1.2;
   color: var(--pixel-ink);
-}
-
-/* The card title already names the band; the first track only needs a breath
-   of air, not a second amber heading of the same weight. */
-.pixel-section-title + .hobby-track {
-  margin-top: 0.5rem;
 }
 
 .hobby-track__note {
