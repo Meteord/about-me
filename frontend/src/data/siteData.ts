@@ -105,6 +105,17 @@ export const siteData = {
     { label: 'Others', items: ['OpenCV', 'OpenGL', 'OMNeT++'] },
   ] as SkillGroup[],
   hobbies: ['Running', 'Cycling', 'Walking with my dog'],
+  dog: {
+    name: 'Nubi',
+    breed: 'Lagotto Romagnolo',
+    birth: '25 Jan 2023',
+    weight: '11 kg',
+    topSpeed: '3:00 min per km',
+    likes: ['Food', 'Sniffing', 'Other dogs', 'Swimming'],
+    blurb:
+      'The reason every \u201cshort walk\u201d takes an hour. Nubi trots along on the hobby runs, supervises the bike repairs and keeps the sofa warm between adventures.',
+    caption: 'Head of walks',
+  },
   projects: [
     {
       name: 'MUCGPT',
@@ -192,7 +203,7 @@ const TOPICS: Record<AboutTopic, string> = {
   bio: 'name, location, employer and personal tags',
   education: 'academic degrees and theses',
   skills: 'technical skills grouped by category',
-  hobbies: 'personal hobbies',
+  hobbies: 'personal hobbies and his dog Nubi',
   projects: 'open source projects he works on',
   contact: 'social and professional links',
   blog: 'blog articles, like how this website works and which models power it',
@@ -247,7 +258,20 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
   }
 
   if (wants('hobbies')) {
-    blocks.push(['## Hobbies'].concat(asList(siteData.hobbies)).join('\n'))
+    const dog = siteData.dog
+    blocks.push(
+      ['## Hobbies']
+        .concat(asList(siteData.hobbies))
+        .concat([
+          `### ${dog.name} (dog)`,
+          `- Breed: ${dog.breed}`,
+          `- Born: ${dog.birth}`,
+          `- Weight: ${dog.weight}`,
+          `- Top speed over 1 km: ${dog.topSpeed}`,
+          `- Likes: ${dog.likes.join(', ')}`,
+        ])
+        .join('\n'),
+    )
   }
 
   if (wants('projects')) {

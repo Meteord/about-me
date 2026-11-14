@@ -104,7 +104,8 @@ export const SOURCE_DEFS: SourceDef[] = [
     section: 'about',
     topic: 'hobbies',
     spotlight: 'hobbies',
-    description: "Michael's hobbies: running, cycling and walking with his dog.",
+    description:
+      "Michael's hobbies: running, cycling and walking with his dog Nubi, a Lagotto Romagnolo.",
     aliases: [
       'hobbies',
       'hobby',
@@ -113,6 +114,9 @@ export const SOURCE_DEFS: SourceDef[] = [
       'running',
       'cycling',
       'dog',
+      'nubi',
+      'lagotto',
+      'walking the dog',
       'fun',
       'interests',
       'for fun',

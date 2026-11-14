@@ -31,7 +31,17 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 
 ## Hobbies
 
-Running, Cycling, Walking with my dog
+- Running
+- Cycling
+- Walking with my dog
+
+### Nubi (dog)
+
+- Breed: Lagotto Romagnolo
+- Born: 25 Jan 2023
+- Weight: 11 kg
+- Top speed over 1 km: 3:00 min per km
+- Likes: Food, Sniffing, Other dogs, Swimming
 `
 
 const projectsMd = `# Projects
@@ -88,7 +98,7 @@ writeFileSync(join(llmsDir, 'blog.md'), blogMd)
 
 const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 
-> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies, and contact links.
+> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies (including his dog Nubi), and contact links.
 
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.

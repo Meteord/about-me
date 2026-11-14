@@ -88,6 +88,47 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
             >{{ hobby }}</span
           >
         </div>
+        <div class="hobby-dog">
+          <figure class="hobby-dog__portrait">
+            <span class="hobby-dog__screen">
+              <img
+                src="/nubi.webp"
+                alt="Nubi, a white Lagotto Romagnolo, curled up in his patterned dog bed next to a red toy ball"
+                width="560"
+                height="598"
+                class="hobby-dog__photo"
+                loading="lazy"
+              />
+            </span>
+            <figcaption class="hobby-dog__caption">{{ siteData.dog.caption }}</figcaption>
+          </figure>
+          <div class="hobby-dog__body">
+            <h4 class="hobby-dog__name">{{ siteData.dog.name }}</h4>
+            <p class="hobby-dog__blurb">{{ siteData.dog.blurb }}</p>
+          </div>
+          <dl class="hobby-dog__facts">
+            <div class="hobby-dog__fact">
+              <dt>Breed</dt>
+              <dd>{{ siteData.dog.breed }}</dd>
+            </div>
+            <div class="hobby-dog__fact">
+              <dt>Born</dt>
+              <dd>{{ siteData.dog.birth }}</dd>
+            </div>
+            <div class="hobby-dog__fact">
+              <dt>Weight</dt>
+              <dd>{{ siteData.dog.weight }}</dd>
+            </div>
+            <div class="hobby-dog__fact">
+              <dt>Top speed</dt>
+              <dd>{{ siteData.dog.topSpeed }}</dd>
+            </div>
+            <div class="hobby-dog__fact">
+              <dt>Likes</dt>
+              <dd>{{ siteData.dog.likes.join(', ') }}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
     </div>
   </section>

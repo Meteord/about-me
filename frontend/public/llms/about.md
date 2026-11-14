@@ -22,4 +22,14 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 
 ## Hobbies
 
-Running, Cycling, Walking with my dog
+- Running
+- Cycling
+- Walking with my dog
+
+### Nubi (dog)
+
+- Breed: Lagotto Romagnolo
+- Born: 25 Jan 2023
+- Weight: 11 kg
+- Top speed over 1 km: 3:00 min per km
+- Likes: Food, Sniffing, Other dogs, Swimming
