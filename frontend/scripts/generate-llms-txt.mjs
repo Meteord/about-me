@@ -42,6 +42,13 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 - Weight: 11 kg
 - Top speed over 1 km: 3:00 min per km
 - Likes: Food, Sniffing, Other dogs, Swimming
+
+### Running (personal bests)
+
+- Marathon: 2:57:57
+- Half marathon: 1:20:04
+- 10K: 37:58
+- 5K: 18:01
 `
 
 const projectsMd = `# Projects
@@ -102,7 +109,7 @@ const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.
-- [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies.
+- [About](llms/about.md): Background, education (B.Sc. CS Hochschule München, M.Sc. CS TU München), skills, and hobbies (running personal bests, his dog Nubi, cycling).
 - [Blog](llms/blog.md): Articles, including "Chat with my website" — the on-device models powering this page (chat model + content retriever).
 - [Projects](llms/projects.md): MUCGPT, Munich's open-source AI chatbot for citizens.
 - [Contact](llms/contact.md): LinkedIn and GitHub profiles.

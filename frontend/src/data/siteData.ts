@@ -49,6 +49,11 @@ export interface Tag {
   url?: string
 }
 
+export interface RunningPb {
+  distance: string
+  time: string
+}
+
 /**
  * The on-device assistant's public identity. Single source of truth: the band
  * title, console plate, prompts, error copy and generated content all read
@@ -115,6 +120,15 @@ export const siteData = {
     blurb:
       'The reason every \u201cshort walk\u201d takes an hour. Nubi trots along on the hobby runs, supervises the bike repairs and keeps the sofa warm between adventures.',
     caption: 'Head of walks',
+  },
+  running: {
+    caption: 'Personal bests',
+    pbs: [
+      { distance: 'Marathon', time: '2:57:57' },
+      { distance: 'Half marathon', time: '1:20:04' },
+      { distance: '10K', time: '37:58' },
+      { distance: '5K', time: '18:01' },
+    ] as RunningPb[],
   },
   projects: [
     {
@@ -203,7 +217,7 @@ const TOPICS: Record<AboutTopic, string> = {
   bio: 'name, location, employer and personal tags',
   education: 'academic degrees and theses',
   skills: 'technical skills grouped by category',
-  hobbies: 'personal hobbies and his dog Nubi',
+  hobbies: 'personal hobbies, running personal bests and his dog Nubi',
   projects: 'open source projects he works on',
   contact: 'social and professional links',
   blog: 'blog articles, like how this website works and which models power it',
@@ -270,6 +284,11 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
           `- Top speed over 1 km: ${dog.topSpeed}`,
           `- Likes: ${dog.likes.join(', ')}`,
         ])
+        .concat(
+          ['### Running (personal bests)'].concat(
+            siteData.running.pbs.map((pb) => `- ${pb.distance}: ${pb.time}`),
+          ),
+        )
         .join('\n'),
     )
   }

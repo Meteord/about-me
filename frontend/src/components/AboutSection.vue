@@ -134,6 +134,40 @@ useReveal(root, { key: 'about-details' })
           </div>
         </div>
         <div
+          id="running"
+          class="hobby-track"
+          :class="{ 'pixel-spotlight': state.spotlight === 'running' }"
+        >
+          <div class="hobby-track__head">
+            <AnchorHeading class="hobby-track__title" tag="h4" href="running" label="Running">
+              Running
+            </AnchorHeading>
+            <p class="hobby-track__note">{{ siteData.running.caption }}</p>
+          </div>
+          <div class="hobby-dog hobby-run">
+            <figure class="hobby-dog__portrait">
+              <span class="hobby-dog__screen">
+                <img
+                  src="/laufen.webp"
+                  alt="A pair of yellow race shoes splattered with blue, orange and white paint, laces tied"
+                  width="2048"
+                  height="1152"
+                  class="hobby-dog__photo hobby-run__photo"
+                  loading="lazy"
+                />
+              </span>
+            </figure>
+            <div class="hobby-dog__body">
+              <dl class="hobby-dog__facts hobby-run__facts">
+                <div v-for="pb in siteData.running.pbs" :key="pb.distance" class="hobby-run__pb">
+                  <dt>{{ pb.distance }}</dt>
+                  <dd>{{ pb.time }}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div
           id="cycling-adventures"
           class="hobby-track"
           :class="{ 'pixel-spotlight': state.spotlight === 'cycling-adventures' }"

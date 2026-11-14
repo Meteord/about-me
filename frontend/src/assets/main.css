@@ -911,6 +911,45 @@ section[id] {
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
 }
 
+/* Race shoes in the same portrait-and-facts layout as Nubi; the photo is a
+   wide shoe shot, so it peeks slightly lower than the dog's face crop. */
+.hobby-run__photo {
+  object-position: 50% 60%;
+}
+
+.hobby-run__facts {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.hobby-run__pb {
+  padding: 0.65rem 0.75rem 0.55rem;
+  border: 1px solid var(--pixel-border);
+}
+
+/* The PB strip is the running body's only content, so it sits centered
+   against the portrait rail instead of hugging the top edge. */
+@media (min-width: 900px) {
+  .hobby-run .hobby-dog__body {
+    justify-content: center;
+  }
+}
+
+.hobby-run__pb dt {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pixel-accent);
+}
+
+.hobby-run__pb dd {
+  font-size: var(--type-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--pixel-ink);
+}
+
 .hobby-dog__blurb {
   max-width: 68ch;
   font-size: var(--type-body);
