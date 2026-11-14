@@ -29,8 +29,16 @@ useReveal(root, { key: 'contact' })
       >
         Contact
       </AnchorHeading>
+      <span class="pixel-window__crumb" aria-hidden="true">~/contact</span>
     </div>
-    <div class="pixel-window__content">
+    <div class="pixel-window__content contact-panel">
+      <div class="contact-panel__intro">
+        <p class="contact-panel__prompt">Say hello.</p>
+        <p class="contact-panel__meta">
+          <span class="about-intro__led" aria-hidden="true"></span>
+          {{ siteData.location }}, Germany
+        </p>
+      </div>
       <div class="pixel-contact">
         <a
           :href="siteData.contact.linkedin"
@@ -40,14 +48,14 @@ useReveal(root, { key: 'contact' })
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
+            width="22"
+            height="22"
             fill="currentColor"
             viewBox="0 0 24 24"
             aria-hidden="true"
           >
             <path
-              d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75-.784 1.75-1.75 1.75zm13.5 11.268h-3v-5.604c0-1.337-.026-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.838-1.563 3.036 0 3.6 2.001 3.6 4.601v5.595z"
+              d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
             />
           </svg>
           LinkedIn
@@ -60,8 +68,8 @@ useReveal(root, { key: 'contact' })
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
+            width="22"
+            height="22"
             fill="currentColor"
             viewBox="0 0 24 24"
             aria-hidden="true"

@@ -39,6 +39,7 @@ Sections are permanent, always-open bands — there is **no** visitor-facing col
 - Fixed composition order + `isVisible(id)` gating in `src/components/HomePage.vue` (the home page is not a data-driven loop).
 - new section component in `src/components/` — copy the static `.pixel-window` skeleton from `ProjectsSection.vue`: `<section aria-labelledby="…">`, a `.pixel-window__bar--static` `<h2>`, always-rendered content, **no** `<button>` header, `aria-expanded`, `aria-controls`, chrome squares or `−`/`+`.
 - a new content source in `SOURCE_DEFS` (`src/tools/registry.ts`) with `section` (+ `slug`/`topic`/`spotlight`), so the retriever can find and inject it
+- an entry in `SectionNav.vue`'s "Jump to" strip, in page order (the strip is sticky above 640px and marks the band that fills the screen)
 - `SECTION_LABEL` in `src/composables/useChatSession.ts`
 - a new `public/llms/<id>.md` (add to `scripts/generate-llms-txt.mjs`), include it in `LLMS_FILES` in `src/composables/useLlmsContent.ts`, and link it in `llms.txt` — this makes it retrievable.
 - add a fixture to `scripts/eval-fixtures.mjs` when adding a source or action.
@@ -46,6 +47,8 @@ Sections are permanent, always-open bands — there is **no** visitor-facing col
 ## Statistics band (build-time derived)
 
 `src/data/siteStats.ts` is the **only** producer of displayed statistic values. `buildStatGroups({ buildYear, site, eval, sources, maxInjectChars, defaultMode })` is pure: no `Date`, `window`, `fetch`, `localStorage` or network access. Values come from `src/data/siteData.ts`, the committed `src/data/evalResults.ts` artifact (test split only), `SOURCE_DEFS`/`MAX_INJECT_CHARS` in `src/tools/registry.ts`, and the Vite build year (`__BUILD_YEAR__`, `define` in `vite.config.ts`, declared in `env.d.ts`).
+
+> The band itself is currently **not mounted** in `HomePage.vue` (it was dropped with the single-page layout). `StatsBand.vue`, `StatCard.vue` and `siteStats.ts` are retained and must stay correct; mount `<StatsBand />` back into the stack if the band should return.
 
 - A statistic whose value cannot be derived returns `null` and is dropped before rendering — never render `0`, `—`, `n/a`, a skeleton or an estimate.
 - A group with no statistics is not rendered; if every group is empty `StatsBand.vue` renders nothing at all (no wrapper, no gap).
@@ -69,7 +72,7 @@ All styling lives globally in `src/assets/main.css` (components carry no `<style
 
 - Use the CSS variables in `:root` (`--pixel-*` colors, `--shadow-hard`/`--shadow-soft`, `--font-display`/`--font-body`, `--type-*`) — never hardcode colors or fonts. Fonts are loaded via the Google Fonts import in `main.css`, no local assets.
 - Aesthetic rules: warm dark palette, hard 2px+ offset shadows (`drop-shadow` or `--shadow-*`), pixel corners via `clip-path: polygon(...)` (4–8px notches), **no `border-radius` above 2px**, and stepped easing — use `steps(2, end)` transitions/animations, never smooth `ease`.
-- Section chrome: each band is a `.pixel-window` with a static `.pixel-window__bar--static` heading row (`<h2>`, no toggle, no chrome squares, no marquee stripe) and always-rendered content. Per section: one 8px notched frame, one hard offset shadow, one heading row, at most one `.pixel-rule` divider and one accent family. The only disclosure controls in the site are the showcase's `<details>` "Technical details" and the assistant launcher — those are the only places `aria-expanded`/`aria-controls` legitimately appear.
+- Section chrome: each band is a `.pixel-window` with a static `.pixel-window__bar--static` heading row (`<h2>`, no toggle, no chrome squares, no marquee stripe) and always-rendered content. Per section: one 8px notched frame, one hard offset shadow, one heading row, at most one `.pixel-rule` divider and one accent family. The title bar ends with the band's mono path readout (`.pixel-window__crumb`, e.g. `~/blog`) on the right; the first band is a two-column introduction (status line, greeting, actions, framed portrait). The only disclosure controls in the site are the showcase's `<details>` "Technical details" and the assistant launcher — those are the only places `aria-expanded`/`aria-controls` legitimately appear.
 - Reading rules: body copy and lists are capped at `max-width: 68ch` with `text-wrap: pretty`; nothing below `--type-micro` (0.75rem); `--font-display` is reserved for the name, section headings and the inline blog article title (kept at section-heading scale). Card titles, chat text and statistic numerals use `--font-body` with tabular numerals.
 - Reuse building blocks instead of restyling: `.pixel-chip` (with `--amber`/`--orange`/`--red` variants), `.pixel-card`, `.pixel-list`, `.pixel-link`, `.pixel-link-btn`, `.pixel-contact__link`, `.stat-card`, `.chat-surface`.
 - Respect the accessibility conventions already in place: `:focus-visible` outlines, `prefers-reduced-motion` handling, `text-wrap: pretty`, the `@media (max-width: 480px)` overrides, and the assistant launcher's Escape/focus-return behaviour.

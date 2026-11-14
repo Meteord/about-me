@@ -24,6 +24,7 @@ useReveal(root, { key: 'blog' })
       <AnchorHeading id="blog-title" tag="h2" class="pixel-window__title" href="blog" label="Blog">
         Blog
       </AnchorHeading>
+      <span class="pixel-window__crumb" aria-hidden="true">~/blog</span>
     </div>
     <div class="pixel-window__content blog-content">
       <BlogArticle v-for="post in siteData.blog" :key="post.slug" :post="post" />

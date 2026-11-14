@@ -31,6 +31,7 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
       >
         Background
       </AnchorHeading>
+      <span class="pixel-window__crumb" aria-hidden="true">~/background</span>
     </div>
     <div class="pixel-window__content about-content">
       <div

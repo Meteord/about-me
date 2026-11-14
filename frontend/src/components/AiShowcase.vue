@@ -30,6 +30,7 @@ useReveal(root, { key: 'ai-showcase' })
       >
         Chat with Mini-Michi
       </AnchorHeading>
+      <span class="pixel-window__crumb" aria-hidden="true">~/assistant</span>
     </div>
     <div class="pixel-window__content ai-showcase__content">
       <p class="ai-showcase__lead">

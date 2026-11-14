@@ -1,12 +1,37 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useChatNav } from '../composables/useChatNav'
+import { useSiteLayout } from '../composables/useSiteLayout'
 import NavSurface from './NavSurface.vue'
 
 const { open, announcement, clearFeedback } = useChatNav()
+const { state } = useSiteLayout()
 const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const surface = ref<InstanceType<typeof NavSurface> | null>(null)
+
+/** The launcher steps aside while the same showcase is already on screen. */
+const showcaseOnScreen = ref(false)
+let frame = 0
+
+function measureShowcase(): void {
+  frame = 0
+  const target = document.getElementById('assistant')
+  const button = trigger.value
+  if (!target || !button) {
+    showcaseOnScreen.value = false
+    return
+  }
+  // Hide only when the floating button would land on top of the real chat.
+  const showcase = target.getBoundingClientRect()
+  const own = button.getBoundingClientRect()
+  showcaseOnScreen.value = own.bottom > showcase.top && own.top < showcase.bottom
+}
+
+function requestShowcaseMeasure(): void {
+  if (frame) return
+  frame = window.requestAnimationFrame(measureShowcase)
+}
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
@@ -84,6 +109,23 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onBeforeUnmount(unlockScroll)
+
+onMounted(() => {
+  window.addEventListener('scroll', requestShowcaseMeasure, { passive: true })
+  window.addEventListener('resize', requestShowcaseMeasure)
+  requestShowcaseMeasure()
+})
+
+watch(
+  () => state.showcaseVisible,
+  () => void nextTick(requestShowcaseMeasure),
+)
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', requestShowcaseMeasure)
+  window.removeEventListener('resize', requestShowcaseMeasure)
+  if (frame) window.cancelAnimationFrame(frame)
+})
 </script>
 
 <template>
@@ -92,11 +134,14 @@ onBeforeUnmount(unlockScroll)
       ref="trigger"
       type="button"
       class="assistant-launcher__trigger"
+      aria-label="Find it on this page"
       aria-controls="assistant-launcher-panel"
       :aria-expanded="open"
+      :data-hidden="showcaseOnScreen && !open"
       @click="toggle"
     >
-      Find it on this page
+      <span class="assistant-launcher__trigger-full">Find it on this page</span>
+      <span class="assistant-launcher__trigger-short" aria-hidden="true">Find</span>
     </button>
 
     <p class="pixel-sr-only" aria-live="polite">{{ announcement }}</p>

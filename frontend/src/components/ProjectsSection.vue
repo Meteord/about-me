@@ -35,6 +35,7 @@ function techVariant(index: number): string {
       >
         Projects
       </AnchorHeading>
+      <span class="pixel-window__crumb" aria-hidden="true">~/projects</span>
     </div>
     <div class="pixel-window__content">
       <p class="projects-inline__lead">Open-source projects Michael builds and contributes to.</p>

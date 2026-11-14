@@ -103,10 +103,16 @@ components:
 
 The site is a warm terminal glowing in a dark room. Every piece of content sits inside a chunky
 "pixel-window" — a hard-edged, notched panel with a labelled title bar — stacked in one editorial
-column on a dark, grainy desktop. Everything is open: the name and lede, a band of counted
-statistics, the on-device assistant, then background, blog, projects and contact. Nothing is
-hidden behind a toggle. There is no chrome borrowed from modern SaaS; the interface is assembled
-from bevels, hard shadows, and phosphor accents, and it is proud of it.
+column on a dark, grainy desktop. Everything is open: the introduction, the on-device assistant,
+then background, blog, projects and contact. Nothing is hidden behind a toggle. There is no chrome
+borrowed from modern SaaS; the interface is assembled from bevels, hard shadows, and phosphor
+accents, and it is proud of it.
+
+The stack opens with a person, not a document: the introduction band carries the name as signage, a
+mono status readout, the greeting, two actions and a framed portrait. A slim "Jump to" menu bar
+sticks to the top once the page scrolls, marking the band that currently fills the screen. Each
+band's title bar ends with its own mono path (`~/background`), so the page reads as a filesystem of
+open windows rather than a list of cards.
 
 The mood is warm and nostalgic without becoming a costume. Colors stay on a single warm brown
 axis, so the screen feels like an old amber monitor rather than a flat dark theme. Controls,
@@ -127,7 +133,10 @@ without asking a reader to decode it.
 - One warm ground, one amber voice; every hue lives on the brown axis.
 - Display type only as signage: the site name and section headings; technical sans everywhere else.
 - One frame, one shadow, one heading row, one divider per section — ornament removed, not restyled.
-- Sourced numbers: every statistic on the page is derived from shipped data and links to its source.
+- A portrait, not an avatar row: the first band introduces a person before it introduces the page.
+- One sticky menu bar and one path readout per window: you always know where you are.
+- Sourced numbers: every number on the page, the eval metrics included, is derived from shipped
+  data and links to its source.
 - Stepped, frame-y motion — `steps(2, end)` and CRT flicker, never smooth easing; one-shot only.
 
 ## Colors
@@ -218,17 +227,22 @@ capped at 72rem (`app-column`) and prose blocks capped at 68ch inside it. There 
 no second column. The page pads `4rem 1rem 6rem` (the extra bottom space keeps the last band clear
 of the fixed launcher).
 
-Content is a fixed vertical stack with a 2.5rem gap: introduction → statistics band → assistant
-showcase → background → blog → projects → contact. The order is editorial, never data-driven.
-Density is comfortable: panels pad `2rem 2rem 2.25rem`, cards `1.5rem`, chips `0.25rem 0.75rem`.
-Spacing follows a 4px-based scale (`0.25 / 0.5 / 0.75 / 1 / 1.5 / 2 / 2.5rem`).
+Content is a fixed vertical stack with a 2.5rem gap: introduction → assistant showcase →
+background → blog → projects → contact. The order is editorial, never data-driven. The "Jump to"
+menu bar is the first row of that stack and sticks to the viewport top above 640px, marking the
+band that currently fills the screen. The introduction is the only band laid out on two columns
+(greeting + portrait); the background band is a two-column grid (education and hobbies stacked
+beside a tall skills column); the blog article is a centred document (76ch) inside a full-width
+frame. Density is comfortable: panels pad `2rem 2rem 2.25rem`, cards `1.5rem`, chips
+`0.25rem 0.75rem`. Spacing follows a 4px-based scale (`0.25 / 0.5 / 0.75 / 1 / 1.5 / 2 / 2.5rem`).
 
-Responsive behavior is breakpoint-light: the statistics grid is 1 column below 640px, 2 columns to
-1023px, and up to 4 above; at `max-width: 480px` paddings shrink, headings stay on one or two
-lines, the tool-result grid drops its score column, and the launcher panel takes the usable width
-with a body scroll lock. Values and labels wrap, never truncate, and the page never scrolls
-horizontally. `html[data-zoom]` can set the root font to 14px (compact) or 18px (comfortable) — so
-all sizes are in `rem`.
+Responsive behavior is breakpoint-light: the background grid collapses to one column at 900px, the
+introduction stacks with the portrait first at 720px, the project card stacks at 760px; at
+`max-width: 480px` paddings shrink, the menu bar returns to a static two-line strip, headings stay
+on one or two lines, the tool-result grid drops its score column, and the launcher panel takes the
+usable width with a body scroll lock. Values and labels wrap, never truncate, and the page never
+scrolls horizontally. `html[data-zoom]` can set the root font to 14px (compact) or 18px
+(comfortable) — so all sizes are in `rem`.
 
 ## Elevation & Depth
 
@@ -309,28 +323,42 @@ softness as a `clip-path` chamfer instead.
 
 ### Navigation
 
+- **Menu bar (`.pixel-jump`):** A single full-width strip — "Jump to" plus the six band anchors in
+  page order. Above 640px it is `position: sticky` at the viewport top and marks the band that
+  fills the screen (`aria-current="location"`, amber underline); below 640px it returns to a
+  static, wrapping strip. Every anchor target reserves `4.75rem` of `scroll-margin-top` for it.
 - **Section heading row (`.pixel-window__bar--static`):** A full-width, non-interactive row —
-  display-font heading on the left. It is a `<div>` with an `<h2>`, never a `<button>`: no
-  `aria-expanded`, no `aria-controls`, no toggle.
-- **Contact links (`.pixel-contact__link`):** Icon + label, body font; hover nudges `2px` right and
-  tints (orange for LinkedIn, amber for GitHub).
+  display-font heading on the left, the band's mono path on the right (`.pixel-window__crumb`,
+  `~/background`), never a `<button>`: no `aria-expanded`, no `aria-controls`, no toggle.
+- **Contact links (`.pixel-contact__link`):** Icon + label in a full-size target (44px minimum),
+  raised panel fill and 1px hardware border; hover tints (orange for LinkedIn, amber for GitHub)
+  and lights the border.
 - **Inline links (`.pixel-link`):** Amber text with a dashed orange underline, brightening on hover.
 
 ### Section Window (signature)
 
 The defining component: a `pixel-window` with a notched 8px frame, a gradient panel fill, inset
-bevels, and a hard drop-shadow — one frame, one shadow, one static heading row, one accent family.
-Content is always rendered: a section is readable with zero clicks and there is no collapsed state.
-Sections can be highlighted (`pixel-window--highlight`) or spotlighted (`pixel-spotlight`) by the
-assistant, and hidden/shown by an assistant action (the band unmounts, leaving no gap).
+bevels, and a hard drop-shadow — one frame, one shadow, one static heading row, one path readout,
+one accent family. Content is always rendered: a section is readable with zero clicks and there is
+no collapsed state. Sections can be highlighted (`pixel-window--highlight`) or spotlighted
+(`pixel-spotlight`) by the assistant, and hidden/shown by an assistant action (the band unmounts,
+leaving no gap).
+
+### Introduction Band
+
+The first band is a person, not a table of contents. The title bar carries the name alone — display
+face, one blinking terminal cursor, no anchor mark — with `~/about` on the right. The body is a
+two-column grid: a mono status row (lit amber LED + `AI / ML ENGINEER / MUNICH, GERMANY`), the
+greeting, the personal tags, and two actions (`Ask Mini-Michi`, primary; `See the projects`,
+quiet). The portrait is a framed screen on the right — 2px amber bezel, 8px notch, faint scanlines,
+a mono caption plate — cropped square from the 320px source. On phones the portrait moves above the
+text at 120px wide.
 
 ### Statistics Band
 
-Two labelled groups ("The person", "This site") of `.stat-card`s: a counted value in tabular body
-numerals with a static unit (`yrs`, `%`, `ms`, `M`), a short label, a one-line note, and one source
-link. Values are derived at build time from shipped data (`src/data/siteStats.ts`) — never typed by
-hand — and a statistic whose source is unreadable is dropped, never shown as `0` or `—`. The
-screen-reader text always carries the final value; the animated digits are `aria-hidden`.
+`StatsBand.vue` / `StatCard.vue` remain available (counted values in tabular body numerals, static
+units, a source link, `aria-hidden` animated digits, values derived in `src/data/siteStats.ts`) but
+the band is **not** mounted in `HomePage.vue`.
 
 ### Assistant Showcase, Details and Launcher
 
@@ -339,7 +367,22 @@ input, send/stop, Clear, a plain "Used: …" line) and one native `<details>` la
 details" holding the retrieval panel, model ids, dtype/device and trace export. The launcher is a
 fixed bottom-right trigger (`aria-expanded` + `aria-controls`) that opens a `role="dialog"` panel
 rendering the same surface and the same conversation; focus moves to the input, Tab stays inside,
-Escape closes and returns focus.
+Escape closes and returns focus. The trigger fades out and leaves the tab order whenever it would
+land on top of the assistant band (it has nothing to add there), and shortens to "Find" below
+480px.
+
+### Contact Sign-off
+
+The closing band is a sign-off, not a strip of links: "Say hello." with a mono location readout on
+the left and the two reach-me buttons on the right. The band uses the same frame and path readout
+as every other band so the page ends on the same note it opened.
+
+### Project Card
+
+Two columns: the description and the GitHub action on the left, the stack on the right. The stack
+is a spec sheet — two columns (frontend/backend) with the deployment group spanning both and its
+items in two columns — so the card's halves stay the same height instead of one sparse column
+beside a long list.
 
 ### Tool Result Row (signature)
 
@@ -361,6 +404,9 @@ that context is being pruned.
 - **Do** keep section headings static (no `<button>`, no `aria-expanded`); reserve
   `aria-controls` + `aria-expanded` for the two real disclosures (technical details, launcher) and
   keep `:focus-visible` outlines on every control.
+- **Do** keep the menu bar's six items in page order and mark the current band — a 7,000px page
+  needs a "you are here".
+- **Do** end every window bar with its mono path (`~/blog`); it is the band's identity, not decoration.
 - **Do** derive every displayed statistic from shipped data and link it to its source.
 
 ### Don't:
