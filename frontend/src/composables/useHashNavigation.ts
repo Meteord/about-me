@@ -46,6 +46,17 @@ export function resolveAnchor(value: string): string | null {
   return LEGACY_ALIASES[raw] ?? raw
 }
 
+/** Set once the app mounts; lets non-component code (the launcher) navigate. */
+let navigateTo: ((id: string) => void) | null = null
+
+/** Navigate to a canonical anchor from outside the page's Vue tree. */
+export function navigateToAnchor(value: string): boolean {
+  const id = resolveAnchor(value)
+  if (!id || !navigateTo) return false
+  navigateTo(id)
+  return true
+}
+
 function sectionFor(id: string): SectionId | null {
   const direct = SECTION_BY_ANCHOR[id]
   if (direct) return direct
@@ -121,6 +132,8 @@ export function useHashNavigation(): void {
     writeHash(id, false)
     focusAnchor(id)
   }
+
+  navigateTo = navigate
 
   function syncFromLocation(replace: boolean): void {
     const id = resolveAnchor(window.location.hash)

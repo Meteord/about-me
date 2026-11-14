@@ -336,8 +336,8 @@ useReveal(root, {
       <span class="blog-post__closer-tag">Try it yourself</span>
       <p class="blog-post__closer-text">
         The thing this article describes is running on this page. Ask Mini-Michi in the chat section
-        (or from the launcher) what BM25 means or which sources are in context — the reply is
-        streamed to your browser by LFM2.5-350M.
+        what BM25 means or which sources are in context — the reply is streamed to your browser by
+        LFM2.5-350M. The floating launcher only navigates: it finds the matching section for you.
       </p>
     </div>
   </article>

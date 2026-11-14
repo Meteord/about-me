@@ -1,16 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
-import { useChatSession } from '../composables/useChatSession'
-import ChatSurface from './ChatSurface.vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useChatNav } from '../composables/useChatNav'
+import NavSurface from './NavSurface.vue'
 
-const { launcherOpen, setLauncherOpen } = useChatSession()
-const open = computed({
-  get: () => launcherOpen.value,
-  set: (value: boolean) => setLauncherOpen(value),
-})
+const { open, announcement, clearFeedback } = useChatNav()
 const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
-const surface = ref<InstanceType<typeof ChatSurface> | null>(null)
+const surface = ref<InstanceType<typeof NavSurface> | null>(null)
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
@@ -30,27 +26,33 @@ function unlockScroll(): void {
   scrollLocked = false
 }
 
-function openPanel(): void {
-  if (open.value) return
-  open.value = true
-  lockScrollIfNarrow()
-  nextTick(() => {
-    surface.value?.focusInput()
-    if (!panel.value?.contains(document.activeElement)) panel.value?.focus()
-  })
+function toggle(): void {
+  open.value = !open.value
 }
 
 function closePanel(): void {
-  if (!open.value) return
   open.value = false
-  unlockScroll()
-  trigger.value?.focus()
 }
 
-function toggle(): void {
-  if (open.value) closePanel()
-  else openPanel()
-}
+/** Focus moves into the panel on open and back to the trigger on close. */
+watch(
+  open,
+  (isOpen) => {
+    if (isOpen) {
+      // No transcript: the ranking belongs to the last question only.
+      clearFeedback()
+      lockScrollIfNarrow()
+      nextTick(() => {
+        surface.value?.focusInput()
+        if (!panel.value?.contains(document.activeElement)) panel.value?.focus()
+      })
+    } else {
+      unlockScroll()
+      trigger.value?.focus({ preventScroll: true })
+    }
+  },
+  { flush: 'post' },
+)
 
 /** Escape closes; Tab/Shift+Tab cycle inside the panel while it is open. */
 function onKeydown(event: KeyboardEvent): void {
@@ -94,8 +96,10 @@ onBeforeUnmount(unlockScroll)
       :aria-expanded="open"
       @click="toggle"
     >
-      Chat with Mini-Michi
+      Find it on this page
     </button>
+
+    <p class="pixel-sr-only" aria-live="polite">{{ announcement }}</p>
 
     <section
       v-if="open"
@@ -104,17 +108,17 @@ onBeforeUnmount(unlockScroll)
       class="assistant-launcher__panel"
       role="dialog"
       aria-modal="true"
-      aria-label="Chat with Mini-Michi"
+      aria-label="Find it on this page"
       tabindex="-1"
       @keydown="onKeydown"
     >
       <div class="assistant-launcher__bar">
-        <p class="assistant-launcher__title">Mini-Michi</p>
+        <p class="assistant-launcher__title">Find it on this page</p>
         <button type="button" class="pixel-link-btn assistant-launcher__close" @click="closePanel">
           Close
         </button>
       </div>
-      <ChatSurface ref="surface" variant="launcher" />
+      <NavSurface ref="surface" />
     </section>
   </div>
 </template>

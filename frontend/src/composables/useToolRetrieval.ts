@@ -84,6 +84,13 @@ export interface RetrieveResult {
   stats: RetrievalStats
 }
 
+export interface RetrieveOptions {
+  topK?: number
+  mode?: RetrievalMode
+  /** Write `lastQuery`/`lastResult` for the technical panel. Default true. */
+  record?: boolean
+}
+
 const lastQuery = ref('')
 const lastResult = ref<RetrieveResult | null>(null)
 const vectorState = ref<VectorState>({
@@ -757,12 +764,10 @@ function hybridScores(bm25: number[], vector: number[]): number[] {
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
-export async function retrieve(
-  query: string,
-  opts?: { topK?: number; mode?: RetrievalMode },
-): Promise<RetrieveResult> {
+export async function retrieve(query: string, opts?: RetrieveOptions): Promise<RetrieveResult> {
   const selectedMode = opts?.mode ?? mode.value
   const k = opts?.topK ?? topK.value
+  const record = opts?.record ?? true
   const start = performance.now()
   const docs = getSourceDocs()
   const totalChars = sourceChars(SOURCE_DEFS)
@@ -831,8 +836,7 @@ export async function retrieve(
   const selectedNames = rows.filter((row) => row.selected).map((row) => row.name)
   const prunedChars = totalChars - sourceChars(filterSources(selectedNames))
 
-  lastQuery.value = query
-  lastResult.value = {
+  const result: RetrieveResult = {
     rows,
     selectedNames,
     stats: {
@@ -845,7 +849,11 @@ export async function retrieve(
       latencyMs: Math.round(performance.now() - start),
     },
   }
-  return lastResult.value
+  if (record) {
+    lastQuery.value = query
+    lastResult.value = result
+  }
+  return result
 }
 
 export function useToolRetrieval() {

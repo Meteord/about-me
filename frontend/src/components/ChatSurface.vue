@@ -1,30 +1,58 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { MODEL_STATUS_LABEL, humanizeModelError } from '../composables/useChatModel'
-import { SECTION_LABEL, useChatSession } from '../composables/useChatSession'
-import { siteData } from '../data/siteData'
-
-const props = defineProps<{ variant: 'inline' | 'launcher' }>()
+import { useChatSession, type ChatMessage } from '../composables/useChatSession'
+import { sourceLinksFor, type SourceLink } from '../tools/sourceLinks'
 
 const {
   state,
-  launcherOpen,
   messages,
   input,
   isGenerating,
   generatingId,
   suggestions,
-  sourcesUsed,
   send,
   cancel,
   clear,
   loadModel,
   pickSuggestions,
-  focusAssistantTarget,
 } = useChatSession()
 
 const logEl = ref<HTMLElement | null>(null)
 const inputEl = ref<HTMLInputElement | null>(null)
+
+type RenderItem =
+  | { kind: 'message'; message: ChatMessage }
+  | { kind: 'sources'; id: number; links: SourceLink[] }
+
+/** Messages with each answer's source links attached right below it. */
+const renderItems = computed<RenderItem[]>(() => {
+  const items: RenderItem[] = []
+  let pending: { id: number; links: SourceLink[] } | null = null
+
+  const flush = (): void => {
+    if (pending && pending.links.length > 0) {
+      items.push({ kind: 'sources', id: pending.id, links: pending.links })
+    }
+    pending = null
+  }
+
+  for (const message of messages.value) {
+    if (message.role === 'retrieval') {
+      pending = { id: message.id, links: sourceLinksFor(message.injectedNames ?? []) }
+      continue
+    }
+    if (message.role === 'user') flush()
+    items.push({ kind: 'message', message })
+    if (message.role === 'assistant' || message.role === 'error') flush()
+  }
+  flush()
+  return items
+})
+
+function itemKey(item: RenderItem): string {
+  return item.kind === 'sources' ? `sources-${item.id}` : `message-${item.message.id}`
+}
 
 /** Streaming keeps the length constant, so scroll on the last message's size. */
 const lastLength = computed(() => {
@@ -44,10 +72,6 @@ function scrollToBottom(force = false): void {
 watch([() => messages.value.length, lastLength], () => scrollToBottom())
 
 const canAsk = computed(() => state.value.status === 'ready' || state.value.status === 'idle')
-/** Only the surface the visitor is looking at may announce new messages. */
-const live = computed(() =>
-  props.variant === 'launcher' ? launcherOpen.value : !launcherOpen.value,
-)
 const isWorking = computed(() => isGenerating.value && generatingId.value === null)
 
 function escapeHtml(text: string): string {
@@ -131,24 +155,28 @@ defineExpose({ focusInput })
 </script>
 
 <template>
-  <div class="chat-surface" :class="`chat-surface--${variant}`">
-    <p v-if="sourcesUsed.labels.length" class="chat-surface__used">
-      <span class="chat-surface__used-label">Used</span>
-      {{ sourcesUsed.labels.join(', ') }}
-    </p>
-
+  <div class="chat-surface">
     <div
       ref="logEl"
       class="pixel-chat chat-surface__log"
       role="log"
-      :aria-live="live ? 'polite' : 'off'"
+      aria-live="polite"
       aria-label="Mini-Michi conversation"
     >
-      <template v-for="message in messages" :key="message.id">
-        <div v-if="message.role === 'user'" class="pixel-msg pixel-msg--user">
-          <p>{{ message.content }}</p>
+      <template v-for="item in renderItems" :key="itemKey(item)">
+        <p v-if="item.kind === 'sources'" class="chat-surface__sources">
+          <span class="chat-surface__sources-label">Sources</span>
+          <template v-for="link in item.links" :key="link.name">
+            <a v-if="link.anchor" class="pixel-link chat-surface__source" :href="`#${link.anchor}`">
+              {{ link.label }}
+            </a>
+            <span v-else class="chat-surface__source">{{ link.label }}</span>
+          </template>
+        </p>
+        <div v-else-if="item.message.role === 'user'" class="pixel-msg pixel-msg--user">
+          <p>{{ item.message.content }}</p>
         </div>
-        <div v-else-if="message.role === 'assistant'" class="pixel-msg pixel-msg--ai">
+        <div v-else-if="item.message.role === 'assistant'" class="pixel-msg pixel-msg--ai">
           <img
             src="/mm.webp"
             alt=""
@@ -160,57 +188,26 @@ defineExpose({ focusInput })
           <div class="pixel-msg__body">
             <div
               class="pixel-msg__text pixel-msg__markdown"
-              v-html="renderMarkdown(message.content)"
+              v-html="renderMarkdown(item.message.content)"
             ></div>
             <span
-              v-if="generatingId === message.id"
+              v-if="generatingId === item.message.id"
               class="pixel-msg__cursor"
               aria-hidden="true"
             ></span>
           </div>
         </div>
-        <div v-else-if="message.role === 'action'" class="pixel-msg pixel-msg--action">
-          <template v-if="message.payload.kind === 'theme'">
-            <span class="pixel-chip" :class="`pixel-chip--${message.payload.theme}`">
-              theme → {{ message.payload.theme }}
-            </span>
-          </template>
-          <template v-else-if="message.payload.kind === 'contact'">
-            <div class="pixel-contact pixel-chat-contact__links">
-              <a
-                :href="siteData.contact.linkedin"
-                target="_blank"
-                rel="noopener"
-                class="pixel-contact__link pixel-contact__link--linkedin"
-              >
-                LinkedIn
-              </a>
-              <a
-                :href="siteData.contact.github"
-                target="_blank"
-                rel="noopener"
-                class="pixel-contact__link pixel-contact__link--github"
-              >
-                GitHub
-              </a>
-            </div>
-          </template>
-          <template v-else-if="message.payload.kind === 'section'">
-            <button
-              class="pixel-link-btn pixel-msg__jump"
-              type="button"
-              @click="focusAssistantTarget(message.payload.section, message.payload.target)"
-            >
-              {{
-                message.payload.target
-                  ? 'View the article'
-                  : `View ${SECTION_LABEL[message.payload.section]} section`
-              }}
-            </button>
-          </template>
+        <div v-else-if="item.message.role === 'action'" class="pixel-msg pixel-msg--action">
+          <span
+            v-if="item.message.payload.kind === 'theme'"
+            class="pixel-chip"
+            :class="`pixel-chip--${item.message.payload.theme}`"
+          >
+            theme → {{ item.message.payload.theme }}
+          </span>
         </div>
-        <div v-else-if="message.role === 'error'" class="pixel-msg pixel-msg--error">
-          {{ message.content }}
+        <div v-else-if="item.message.role === 'error'" class="pixel-msg pixel-msg--error">
+          {{ item.message.content }}
         </div>
       </template>
 

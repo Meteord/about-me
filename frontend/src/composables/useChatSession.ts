@@ -1,27 +1,17 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { CancelledError, humanizeModelError, useChatModel } from './useChatModel'
-import { useSiteLayout, type SectionId, type ThemeName } from './useSiteLayout'
+import { useSiteLayout, type ThemeName } from './useSiteLayout'
 import { useTraceRecorder } from './useTraceRecorder'
 import { useToolRetrieval, type RetrievalStats, type ToolScore } from './useToolRetrieval'
-import {
-  SOURCE_DEFS,
-  buildContextText,
-  buildSystemPrompt,
-  decideAction,
-  type SourceDef,
-} from '../tools/registry'
+import { buildContextText, buildSystemPrompt, decideAction } from '../tools/registry'
 
 /**
- * The single Mini-Michi conversation (spec 007 FR-016/FR-019, contract
- * `contracts/chat-session.md` C1). The inline showcase and the launcher are
- * two renders of this module-level state — there is never a second message
- * array, a second model instance or a duplicated answer.
+ * The inline Mini-Michi conversation: retrieval, context injection, a streamed
+ * answer and source links under that answer. It never moves the page — the
+ * floating launcher (`useChatNav`) is the navigation helper.
  */
 
-export type ActionPayload =
-  | { kind: 'theme'; theme: ThemeName }
-  | { kind: 'contact' }
-  | { kind: 'section'; section: SectionId; target?: string }
+export type ActionPayload = { kind: 'theme'; theme: ThemeName }
 
 export type ChatMessage =
   | { id: number; role: 'user'; content: string }
@@ -38,13 +28,6 @@ export type ChatMessage =
   | { id: number; role: 'action'; payload: ActionPayload }
   | { id: number; role: 'error'; content: string; detail?: string }
 
-export const SECTION_LABEL: Record<SectionId, string> = {
-  about: 'About',
-  blog: 'Blog',
-  projects: 'Projects',
-  contact: 'Contact',
-}
-
 const EXAMPLES = [
   'What can you do?',
   'Tell me about Michael\u2019s education',
@@ -56,17 +39,6 @@ const EXAMPLES = [
   'Where does Michael work?',
   'Give me a random fact',
 ]
-
-const SOURCE_BY_NAME = new Map(SOURCE_DEFS.map((def) => [def.name, def]))
-
-/** Plain-language name for a content source ("skills", "the blog article"). */
-function plainSourceLabel(def: SourceDef): string {
-  if (def.topic && def.topic !== 'all') return def.topic
-  if (def.slug) return 'the blog article'
-  if (def.name === 'site_index') return 'the site index'
-  if (def.section) return SECTION_LABEL[def.section].toLowerCase()
-  return def.title
-}
 
 /* ------------------------------------------------------------------ */
 /* Singleton state                                                     */
@@ -80,7 +52,7 @@ const {
   cancel: cancelGeneration,
   resetCancel,
 } = useChatModel()
-const { state: layout, focusSection, setTheme, setVisible, setShowcaseVisible } = useSiteLayout()
+const { state: layout, setTheme } = useSiteLayout()
 const { downloadTrace } = useTraceRecorder()
 const {
   mode,
@@ -103,8 +75,6 @@ const isGenerating = ref(false)
 const generatingId = ref<number | null>(null)
 /** Technical-details disclosure: closed on load and after Clear (contract C3.1). */
 const detailsOpen = ref(false)
-/** Launcher panel visibility — one live region must win (no double announcements). */
-const launcherOpen = ref(false)
 const suggestions = ref<string[]>([])
 
 let nextId = 1
@@ -127,32 +97,6 @@ function pickSuggestions(count = 2): void {
 
 pickSuggestions()
 
-/** Highest-ranked selected content source — drives the page side-effect. */
-function topContentSource(rows: ToolScore[]): SourceDef | undefined {
-  for (const row of rows) {
-    if (!row.selected) continue
-    const def = SOURCE_BY_NAME.get(row.name)
-    if (def && def.kind === 'content') return def
-  }
-  return undefined
-}
-
-function actionPayloadFor(def: SourceDef | undefined): ActionPayload | null {
-  if (!def) return null
-  if (def.name === 'contact') return { kind: 'contact' }
-  if (def.section === 'blog' && def.slug) {
-    return { kind: 'section', section: 'blog', target: `blog-${def.slug}` }
-  }
-  if (def.section) return { kind: 'section', section: def.section }
-  return null
-}
-
-function applyContentEffect(def: SourceDef | undefined): void {
-  if (!def?.section) return
-  const target = def.slug ? `blog-${def.slug}` : def.spotlight
-  focusSection(def.section, target ? { target } : {})
-}
-
 /** Fetch the matched content, inject it and record what was used. */
 async function injectSources(names: string[], retrievalId: number): Promise<string> {
   const { names: injectedNames, text } = await buildContextText(names)
@@ -160,29 +104,6 @@ async function injectSources(names: string[], retrievalId: number): Promise<stri
   if (message && message.role === 'retrieval') message.injectedNames = injectedNames
   return text
 }
-
-/** Scroll/spotlight the highest-ranked matched content source. */
-function applyTopSource(rows: ToolScore[]): void {
-  const topSource = topContentSource(rows)
-  const payload = actionPayloadFor(topSource)
-  if (!payload) return
-  applyContentEffect(topSource)
-  push('action', { payload })
-}
-
-/** Injected sources, mapped to names a visitor can read (never `about_skills`). */
-const sourcesUsed = computed<{ names: string[]; labels: string[] }>(() => {
-  for (let i = messages.value.length - 1; i >= 0; i--) {
-    const message = messages.value[i]
-    if (message.role !== 'retrieval' || !message.injectedNames?.length) continue
-    const labels = message.injectedNames.map((name) => {
-      const def = SOURCE_BY_NAME.get(name)
-      return def ? plainSourceLabel(def) : name
-    })
-    return { names: [...message.injectedNames], labels }
-  }
-  return { names: [], labels: [] }
-})
 
 async function send(raw?: string): Promise<void> {
   const text = (raw ?? input.value).trim()
@@ -211,11 +132,9 @@ async function send(raw?: string): Promise<void> {
       return
     }
 
-    // Content injection and the page effect happen before any model work, so a
-    // failed download still shows the matched sources ("Used: …") and the page
-    // still moves to the right band (SC-011).
+    // Injection happens before any model work, so the answer's source links
+    // still appear when the download fails. Nothing on the page moves.
     const contextText = await injectSources(retrieval.selectedNames, retrievalId)
-    applyTopSource(retrieval.rows)
 
     if (state.value.status !== 'ready') {
       try {
@@ -291,15 +210,6 @@ function clear(): void {
   pickSuggestions()
 }
 
-/** Text history only — the loaded model stays warm. */
-function startNewChat(): void {
-  messages.value = []
-  modelMessages.value = []
-  generatingId.value = null
-  resetCancel()
-  pickSuggestions()
-}
-
 async function loadModel(): Promise<void> {
   try {
     await loadChatModel()
@@ -312,21 +222,6 @@ function saveTrace(): void {
   downloadTrace(messages.value)
 }
 
-function setLauncherOpen(open: boolean): void {
-  launcherOpen.value = open
-}
-
-/** Applied by an assistant action payload (contact/section jump render as links). */
-function focusAssistantTarget(section: SectionId, target?: string): void {
-  focusSection(section, target ? { target } : {})
-}
-
-/** Assistant-driven hide/show of a section, and of the showcase band. */
-function applyVisibility(id: SectionId | 'showcase', visible: boolean): void {
-  if (id === 'showcase') setShowcaseVisible(visible)
-  else setVisible(id, visible)
-}
-
 const session = {
   state,
   messages,
@@ -335,9 +230,7 @@ const session = {
   isGenerating,
   generatingId,
   detailsOpen,
-  launcherOpen,
   suggestions,
-  sourcesUsed,
   mode,
   topK,
   lastQuery,
@@ -347,18 +240,14 @@ const session = {
   send,
   cancel,
   clear,
-  startNewChat,
   loadModel,
   saveTrace,
-  setLauncherOpen,
   retrieve,
   loadVector,
   disposeVector,
   loadDecide,
   disposeDecide,
   pickSuggestions,
-  focusAssistantTarget,
-  applyVisibility,
   layout,
 }
 

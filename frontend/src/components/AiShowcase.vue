@@ -36,7 +36,7 @@ useReveal(root, { key: 'ai-showcase' })
         A small language model runs entirely in your browser — no server, no account, no API key.
         Ask it about anything on this page.
       </p>
-      <ChatSurface variant="inline" />
+      <ChatSurface />
       <ChatDetails />
     </div>
   </section>
