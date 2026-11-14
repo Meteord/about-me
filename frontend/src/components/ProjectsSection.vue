@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
+import AnchorHeading from './AnchorHeading.vue'
 
 const { state } = useSiteLayout()
 
@@ -25,7 +26,15 @@ function techVariant(index: number): string {
     aria-labelledby="projects-title"
   >
     <div class="pixel-window__bar pixel-window__bar--static">
-      <h2 id="projects-title" class="pixel-window__title">Projects</h2>
+      <AnchorHeading
+        id="projects-title"
+        tag="h2"
+        class="pixel-window__title"
+        href="projects"
+        label="Projects"
+      >
+        Projects
+      </AnchorHeading>
     </div>
     <div class="pixel-window__content">
       <p class="projects-inline__lead">Open-source projects Michael builds and contributes to.</p>

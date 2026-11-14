@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
+import AnchorHeading from './AnchorHeading.vue'
 import BlogArticle from './BlogArticle.vue'
 
 const { state } = useSiteLayout()
@@ -20,7 +21,9 @@ useReveal(root, { key: 'blog' })
     aria-labelledby="blog-title"
   >
     <div class="pixel-window__bar pixel-window__bar--static">
-      <h2 id="blog-title" class="pixel-window__title">Blog</h2>
+      <AnchorHeading id="blog-title" tag="h2" class="pixel-window__title" href="blog" label="Blog">
+        Blog
+      </AnchorHeading>
     </div>
     <div class="pixel-window__content blog-content">
       <BlogArticle v-for="post in siteData.blog" :key="post.slug" :post="post" />

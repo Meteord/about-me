@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
+import AnchorHeading from './AnchorHeading.vue'
 
 const { state } = useSiteLayout()
 
@@ -19,7 +20,15 @@ useReveal(root, { key: 'contact' })
     aria-labelledby="contact-title"
   >
     <div class="pixel-window__bar pixel-window__bar--static">
-      <h2 id="contact-title" class="pixel-window__title">Contact</h2>
+      <AnchorHeading
+        id="contact-title"
+        tag="h2"
+        class="pixel-window__title"
+        href="contact"
+        label="Contact"
+      >
+        Contact
+      </AnchorHeading>
     </div>
     <div class="pixel-window__content">
       <div class="pixel-contact">

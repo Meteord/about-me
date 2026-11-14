@@ -5,6 +5,7 @@ import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData, type BlogPost, type TechModel } from '../data/siteData'
 import { evalResults, formatLatency, type ModeAggregate } from '../data/evalResults'
+import AnchorHeading from './AnchorHeading.vue'
 import EvalComparison from './EvalComparison.vue'
 
 const pct = (value: number): string => `${Math.round(value * 100)}%`
@@ -124,10 +125,10 @@ useReveal(root, {
         class="pixel-avatar blog-post__avatar"
       />
       <div class="blog-post__head-text">
-        <h3 :id="titleId" class="blog-post__title">
+        <AnchorHeading :id="titleId" class="blog-post__title" :href="articleId" :label="post.title">
           {{ post.title
           }}<span class="pixel-msg__cursor blog-post__cursor" aria-hidden="true"></span>
-        </h3>
+        </AnchorHeading>
         <p class="blog-post__tape">
           <time class="blog-post__date" :datetime="post.date">{{ formatBlogDate(post.date) }}</time>
           <span class="pixel-chip pixel-chip--orange">{{ post.readTime }} read</span>

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
 import { useSiteLayout } from '../composables/useSiteLayout'
 import { siteData } from '../data/siteData'
+import AnchorHeading from './AnchorHeading.vue'
 
 const { state } = useSiteLayout()
 
@@ -28,7 +29,9 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
         height="104"
         class="pixel-avatar about-intro__avatar"
       />
-      <h1 id="about-title" class="pixel-name">{{ siteData.name }}</h1>
+      <AnchorHeading id="about-title" tag="h1" class="pixel-name" href="about" label="About">
+        {{ siteData.name }}
+      </AnchorHeading>
     </div>
     <div class="pixel-window__content about-intro__body">
       <p class="pixel-lede">

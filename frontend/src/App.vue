@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import HomePage from './components/HomePage.vue'
-import { useLegacyHashRedirect } from './composables/useLegacyHashRedirect'
+import { useHashNavigation } from './composables/useHashNavigation'
 
-useLegacyHashRedirect()
+useHashNavigation()
 </script>
 
 <template>

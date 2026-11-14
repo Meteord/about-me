@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useReveal } from '../composables/useReveal'
+import { useSiteLayout } from '../composables/useSiteLayout'
+import AnchorHeading from './AnchorHeading.vue'
 import ChatDetails from './ChatDetails.vue'
 import ChatSurface from './ChatSurface.vue'
+
+const { state } = useSiteLayout()
 
 const root = ref<HTMLElement | null>(null)
 useReveal(root, { key: 'ai-showcase' })
@@ -13,10 +17,19 @@ useReveal(root, { key: 'ai-showcase' })
     ref="root"
     id="assistant"
     class="pixel-window ai-showcase reveal"
+    :class="{ 'pixel-spotlight': state.spotlight === 'assistant' }"
     aria-labelledby="ai-showcase-title"
   >
     <div class="pixel-window__bar pixel-window__bar--static">
-      <h2 id="ai-showcase-title" class="pixel-window__title">Chat with Mini-Michi</h2>
+      <AnchorHeading
+        id="ai-showcase-title"
+        tag="h2"
+        class="pixel-window__title"
+        href="assistant"
+        label="Chat with Mini-Michi"
+      >
+        Chat with Mini-Michi
+      </AnchorHeading>
     </div>
     <div class="pixel-window__content ai-showcase__content">
       <p class="ai-showcase__lead">

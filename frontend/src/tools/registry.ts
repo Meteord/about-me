@@ -49,7 +49,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     title: 'About — education',
     section: 'about',
     topic: 'education',
-    spotlight: 'about-education',
+    spotlight: 'education',
     description:
       "Michael's education: B.Sc. from Hochschule München and M.Sc. from TU München, periods and theses.",
     aliases: [
@@ -76,7 +76,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     title: 'About — skills',
     section: 'about',
     topic: 'skills',
-    spotlight: 'about-skills',
+    spotlight: 'skills',
     description:
       "Michael's technical skills grouped by category (machine learning, frontend, backend, DevOps, languages).",
     aliases: [
@@ -103,7 +103,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     title: 'About — hobbies',
     section: 'about',
     topic: 'hobbies',
-    spotlight: 'about-hobbies',
+    spotlight: 'hobbies',
     description: "Michael's hobbies: running, cycling and walking with his dog.",
     aliases: [
       'hobbies',

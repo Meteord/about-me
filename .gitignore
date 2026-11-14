@@ -1,0 +1,42 @@
+# Repo-wide ignores.
+# App-specific output (dependencies, build, env, traces) lives in
+# frontend/.gitignore — oxlint also reads that file via --ignore-path.
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and IDE files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+*.log
+
+# Agent/design tooling — machine-local and per-run state only.
+# Shared files (.impeccable/design.json, .impeccable/config.json, critique
+# archives) stay tracked.
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/live/
+.impeccable/build/
+.impeccable/review/
+.impeccable-live.json
+.impeccable-live/
+
+# Installed skill bundles ship a platform-specific CLI binary (tens of MB,
+# e.g. linux-x64/impeccable) — never commit it. The instructions, reference
+# docs and scripts beside it remain shareable.
+**/skills/*/scripts/bin/
+
+# Spec Kit keeps its own .gitignore for feature.json and local config overrides.

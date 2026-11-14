@@ -93,7 +93,10 @@ function sharedObserver(options: RevealOptions): IntersectionObserver | null {
       }
     },
     {
-      threshold: options.threshold ?? 0.2,
+      // Any visible sliver is enough: a band taller than the viewport (the blog
+      // band is >5 screens) can never reach a 0.2 intersection ratio, which
+      // used to leave it permanently hidden after a programmatic jump.
+      threshold: options.threshold ?? 0,
       rootMargin: options.rootMargin ?? '0px 0px -10% 0px',
     },
   )
@@ -152,7 +155,9 @@ export function useReveal(target: Ref<HTMLElement | null>, options: RevealOption
     stopObserving?.()
     stopObserving = null
     if (key) finishedKeys.add(key)
-    target.value?.classList.add('reveal--in')
+    // A data attribute, not a class: Vue's `:class` bindings (highlight,
+    // spotlight) rewrite `className` and would strip a manually added class.
+    target.value?.setAttribute('data-reveal', 'in')
     options.onReveal?.()
   }
 
@@ -162,7 +167,7 @@ export function useReveal(target: Ref<HTMLElement | null>, options: RevealOption
 
     if (prefersReducedMotion() || finishedElements.has(el) || (key && finishedKeys.has(key))) {
       finishedElements.add(el)
-      el.classList.add('reveal--in')
+      el.setAttribute('data-reveal', 'in')
       options.onReveal?.()
       return
     }

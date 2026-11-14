@@ -23,7 +23,7 @@ export type StatFormat =
   | { kind: 'text' }
 
 export interface StatSource {
-  /** In-page anchor (`#about-skills`, `#blog-chat-with-my-website`). */
+  /** In-page anchor (`#skills`, `#blog-chat-with-my-website`). */
   href: string
   /** Link text a visitor can read, e.g. "see education". */
   label: string
@@ -72,8 +72,8 @@ interface StatDraft {
 
 const ARTICLE: StatSource = { href: '#blog-chat-with-my-website', label: 'how this works' }
 const EVALUATION: StatSource = { href: '#eval-results', label: 'the evaluation' }
-const EDUCATION: StatSource = { href: '#about-education', label: 'see education' }
-const SKILLS: StatSource = { href: '#about-skills', label: 'see skills' }
+const EDUCATION: StatSource = { href: '#education', label: 'see education' }
+const SKILLS: StatSource = { href: '#skills', label: 'see skills' }
 const CONTACT: StatSource = { href: '#contact', label: 'see contact' }
 
 /** A draft becomes a rendered statistic only when a value exists. */
