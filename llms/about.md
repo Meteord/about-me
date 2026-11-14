@@ -33,3 +33,10 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 - Weight: 11 kg
 - Top speed over 1 km: 3:00 min per km
 - Likes: Food, Sniffing, Other dogs, Swimming
+
+### Running (personal bests)
+
+- Marathon: 2:57:57
+- Half marathon: 1:20:04
+- 10K: 37:58
+- 5K: 18:01
