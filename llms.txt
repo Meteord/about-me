@@ -1,6 +1,6 @@
 # Michael Jaumann | AI and ML Engineer
 
-> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies (including his dog Nubi), and contact links.
+> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies (including his dog Nubi and long-distance cycling adventures), and contact links.
 
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.
