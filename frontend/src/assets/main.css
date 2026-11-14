@@ -281,8 +281,7 @@ textarea {
 /* Every anchor target clears the sticky menu bar and the top edge. */
 .pixel-anchor-heading,
 .pixel-card[id],
-.hobby-rides[id],
-.hobby-ride[id],
+.hobby-track[id],
 section[id] {
   scroll-margin-top: 4.75rem;
 }
@@ -291,8 +290,7 @@ section[id] {
   /* No sticky bar down here — just a breath of space. */
   .pixel-anchor-heading,
   .pixel-card[id],
-  .hobby-rides[id],
-  .hobby-ride[id],
+  .hobby-track[id],
   section[id] {
     scroll-margin-top: 2.5rem;
   }
@@ -731,35 +729,66 @@ section[id] {
   }
 }
 
-/* The dog behind the "walking with my dog" hobby: a framed portrait, a short
-   intro and a small terminal-style fact sheet. */
-.hobby-dog {
-  display: grid;
-  grid-template-columns: clamp(8.5rem, 11vw, 9.5rem) minmax(0, 1fr);
-  grid-template-areas:
-    'portrait body'
-    'facts facts';
-  gap: 1.25rem;
-  align-items: start;
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
+/* The dog behind "walking with my dog" is a track of its own, shaped like the
+   cycling track below it: an anchored heading, a note, and a framed photo.
+   Portrait, profile and fact sheet form one wide band. */
+.hobby-track + .hobby-track {
+  margin-top: 1.75rem;
+  padding-top: 1.75rem;
   border-top: 1px solid var(--pixel-border);
 }
 
-@media (min-width: 960px) {
-  .hobby-dog {
-    grid-template-columns: clamp(8.5rem, 11vw, 9.5rem) minmax(0, 1.05fr) minmax(16rem, 1fr);
-    grid-template-areas: 'portrait body facts';
-    gap: 1.75rem;
-  }
+.hobby-track__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.hobby-track__title {
+  font-family: var(--font-body);
+  font-size: var(--type-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--pixel-ink);
+}
+
+/* The card title already names the band; the first track only needs a breath
+   of air, not a second amber heading of the same weight. */
+.pixel-section-title + .hobby-track {
+  margin-top: 0.5rem;
+}
+
+.hobby-track__note {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pixel-ink-dim);
+}
+
+/* Stacked on phones: snapshot above, story and fact sheet below. From 640px the
+   photo becomes a rail beside the profile, taking its height from the text so
+   both columns end on the same line instead of leaving a void. */
+.hobby-dog {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
 }
 
 .hobby-dog__portrait {
-  grid-area: portrait;
+  position: relative;
+  width: clamp(11rem, 40vw, 13rem);
+  margin: 0;
+}
+
+.hobby-dog__body {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin: 0;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .hobby-dog__screen,
@@ -795,12 +824,73 @@ section[id] {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 5;
   object-fit: cover;
-  object-position: 50% 35%;
+  object-position: 50% 24%;
 }
 
-.hobby-dog__caption,
+/* From 640px the story leads and the snapshot sits beside the fact sheet. */
+@media (min-width: 640px) and (max-width: 899px) {
+  .hobby-dog {
+    grid-template-columns: clamp(11rem, 34%, 18rem) minmax(0, 1fr);
+    gap: 1.25rem 1.5rem;
+  }
+
+  .hobby-dog__portrait {
+    grid-row: 2;
+    width: auto;
+  }
+
+  .hobby-dog__body {
+    display: contents;
+  }
+
+  .hobby-dog__blurb {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .hobby-dog__facts {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
+  }
+
+  .hobby-dog__photo {
+    height: auto;
+    aspect-ratio: auto;
+  }
+}
+
+/* From 900px the photo becomes a rail beside the profile, taking its height
+   from the text so both columns end on the same line instead of leaving a void. */
+@media (min-width: 900px) {
+  .hobby-dog {
+    grid-template-columns: clamp(13rem, 21vw, 19rem) minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: stretch;
+  }
+
+  .hobby-dog__portrait {
+    width: auto;
+    min-height: 15rem;
+  }
+
+  .hobby-dog__portrait .hobby-dog__screen {
+    position: absolute;
+    inset: 0;
+  }
+
+  .hobby-dog__body {
+    justify-content: space-between;
+  }
+
+  .hobby-dog__photo {
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
+
 .hobby-rides__caption {
   display: flex;
   align-items: center;
@@ -812,7 +902,6 @@ section[id] {
   color: var(--pixel-ink-dim);
 }
 
-.hobby-dog__caption::before,
 .hobby-rides__caption::before {
   content: '';
   width: 0.5rem;
@@ -822,44 +911,33 @@ section[id] {
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
 }
 
-.hobby-dog__body {
-  grid-area: body;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  min-width: 0;
-}
-
-.hobby-dog__name {
-  font-family: var(--font-body);
-  font-size: var(--type-heading);
-  font-weight: 700;
-  line-height: 1.1;
-  color: var(--pixel-title);
-}
-
 .hobby-dog__blurb {
-  max-width: 48ch;
-  font-size: var(--type-small);
+  max-width: 68ch;
+  font-size: var(--type-body);
+  line-height: 1.6;
   color: var(--pixel-ink-dim);
   text-wrap: pretty;
 }
 
 .hobby-dog__facts {
-  grid-area: facts;
   display: grid;
-  align-self: start;
-  width: 100%;
-  max-width: 36rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0 1.5rem;
+  max-width: 68ch;
+  margin-top: 1rem;
 }
 
 .hobby-dog__fact {
   display: grid;
-  grid-template-columns: 6.5rem minmax(0, 1fr);
+  grid-template-columns: 6rem minmax(0, 1fr);
   gap: 0.75rem;
   align-items: baseline;
-  padding: 0.35rem 0;
+  padding: 0.5rem 0;
   border-bottom: 1px dotted var(--pixel-border);
+}
+
+.hobby-dog__fact--wide {
+  grid-column: 1 / -1;
 }
 
 .hobby-dog__fact:last-child {
@@ -882,53 +960,13 @@ section[id] {
   text-wrap: pretty;
 }
 
-@media (max-width: 560px) {
-  .hobby-dog {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'portrait'
-      'body'
-      'facts';
-    gap: 1rem;
-  }
-
-  .hobby-dog__portrait {
-    width: 9rem;
+@media (max-width: 760px) {
+  .hobby-dog__fact {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
   }
 }
 
-/* Long-distance rides under the hobbies: teaser cards only, no articles. */
-.hobby-rides {
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--pixel-border);
-}
-
-.hobby-rides__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.25rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.hobby-rides__title {
-  font-family: var(--font-body);
-  font-size: var(--type-heading);
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--pixel-title);
-}
-
-.hobby-rides__note {
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pixel-ink-dim);
-}
-
+/* Long-distance rides: one framed photo above the caption. */
 .hobby-rides__figure {
   display: flex;
   flex-direction: column;
@@ -949,74 +987,6 @@ section[id] {
   .hobby-rides__photo {
     aspect-ratio: 4 / 3;
   }
-}
-
-.hobby-rides__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: 1rem;
-  padding: 0;
-  list-style: none;
-}
-
-.hobby-ride {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: var(--pixel-panel);
-  border: 1px solid var(--pixel-border);
-  border-radius: 2px;
-  box-shadow: var(--shadow-soft);
-  transition: border-color 120ms steps(2, end);
-}
-
-@media (hover: hover) {
-  .hobby-ride:hover {
-    border-color: var(--pixel-border-light);
-  }
-}
-
-.hobby-ride__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.hobby-ride__index {
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: 0.12em;
-  color: var(--pixel-accent);
-}
-
-.hobby-ride__status {
-  padding: 0.1rem 0.4rem;
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--pixel-ink-dim);
-  border: 1px solid var(--pixel-border);
-  border-radius: 2px;
-}
-
-.hobby-ride__title {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--pixel-title);
-  text-wrap: balance;
-}
-
-.hobby-ride__teaser {
-  max-width: 40ch;
-  font-size: var(--type-small);
-  line-height: 1.55;
-  color: var(--pixel-ink-dim);
-  text-wrap: pretty;
 }
 
 .pixel-rule {
@@ -1115,6 +1085,10 @@ section[id] {
 }
 
 .pixel-chip {
+  --chip-fill: var(--pixel-panel-alt);
+  --chip-line: var(--pixel-border);
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.75rem;
@@ -1123,9 +1097,9 @@ section[id] {
   font-weight: 500;
   line-height: 1.4;
   color: var(--pixel-ink);
-  background: var(--pixel-panel-alt);
-  border: 1px solid var(--pixel-border);
-  border-radius: 2px;
+  background: var(--chip-line);
+  border: 0;
+  border-radius: 0;
   clip-path: polygon(
     4px 0,
     calc(100% - 4px) 0,
@@ -1136,34 +1110,54 @@ section[id] {
     0 calc(100% - 4px),
     0 4px
   );
-  box-shadow: var(--shadow-soft);
+}
+
+/* The outline is the chip's background showing around an inset fill, so the
+   1px line follows the notched corners instead of being clipped open there.
+   Colour a chip with --chip-fill/--chip-line, never with background or
+   border-color: those are what draw the frame. */
+.pixel-chip::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  background: var(--chip-fill);
+  clip-path: polygon(
+    3px 0,
+    calc(100% - 3px) 0,
+    100% 3px,
+    100% calc(100% - 3px),
+    calc(100% - 3px) 100%,
+    3px 100%,
+    0 calc(100% - 3px),
+    0 3px
+  );
 }
 
 .pixel-chip--sm {
   padding: 0.125rem 0.5rem;
   font-size: var(--type-label);
   font-weight: 500;
-  box-shadow: none;
 }
 
 .pixel-chip--amber {
+  --chip-line: rgba(253, 224, 71, 0.55);
   color: #fef08a;
-  border-color: rgba(253, 224, 71, 0.55);
 }
 
 .pixel-chip--orange {
+  --chip-line: rgba(251, 146, 60, 0.55);
   color: #fed7aa;
-  border-color: rgba(251, 146, 60, 0.55);
 }
 
 .pixel-chip--red {
+  --chip-line: rgba(248, 113, 113, 0.55);
   color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.55);
 }
 
 .pixel-chip--pink {
+  --chip-line: rgba(240, 171, 252, 0.55);
   color: #fbe7fd;
-  border-color: rgba(240, 171, 252, 0.55);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2523,9 +2517,9 @@ section[id] {
 
 @media (hover: hover) {
   .pixel-chat__example:hover {
-    background: var(--pixel-accent);
+    --chip-fill: var(--pixel-accent);
+    --chip-line: var(--pixel-accent);
     color: var(--pixel-dark);
-    border-color: var(--pixel-accent);
   }
 }
 
@@ -2822,9 +2816,9 @@ section[id] {
 }
 
 .tool-selector__chip--active {
-  background: var(--pixel-accent);
+  --chip-fill: var(--pixel-accent);
+  --chip-line: var(--pixel-accent);
   color: var(--pixel-dark);
-  border-color: var(--pixel-accent);
 }
 
 .tool-selector__topk {
@@ -3209,9 +3203,9 @@ section[id] {
 }
 
 .eval-compare__chip--active {
-  background: var(--pixel-accent);
+  --chip-fill: var(--pixel-accent);
+  --chip-line: var(--pixel-accent);
   color: var(--pixel-dark);
-  border-color: var(--pixel-accent);
 }
 
 .eval-compare__chip:focus-visible {
@@ -3938,13 +3932,13 @@ a.chat-surface__source {
   color: var(--pixel-amber);
   text-decoration: none;
   transition:
-    border-color 120ms steps(2, end),
+    background-color 120ms steps(2, end),
     color 120ms steps(2, end);
 }
 
 @media (hover: hover) {
   a.chat-surface__source:hover {
-    border-color: var(--pixel-accent);
+    --chip-line: var(--pixel-accent);
     color: #fef08a;
   }
 }

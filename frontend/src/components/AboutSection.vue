@@ -9,9 +9,6 @@ const { state } = useSiteLayout()
 
 const root = ref<HTMLElement | null>(null)
 useReveal(root, { key: 'about-details' })
-
-const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pink']
-const rideNumbers = ['01', '02', '03']
 </script>
 
 <template>
@@ -80,67 +77,76 @@ const rideNumbers = ['01', '02', '03']
         <AnchorHeading class="pixel-section-title" href="hobbies" label="Hobbies">
           Hobbies
         </AnchorHeading>
-        <div class="pixel-tags pixel-tags--start">
-          <span
-            v-for="(hobby, index) in siteData.hobbies"
-            :key="hobby"
-            class="pixel-chip"
-            :class="tagVariants[index % tagVariants.length]"
-            >{{ hobby }}</span
-          >
-        </div>
-        <div class="hobby-dog">
-          <figure class="hobby-dog__portrait">
-            <span class="hobby-dog__screen">
-              <img
-                src="/nubi.webp"
-                alt="Nubi, a white Lagotto Romagnolo, curled up in his patterned dog bed next to a red toy ball"
-                width="560"
-                height="598"
-                class="hobby-dog__photo"
-                loading="lazy"
-              />
-            </span>
-            <figcaption class="hobby-dog__caption">{{ siteData.dog.caption }}</figcaption>
-          </figure>
-          <div class="hobby-dog__body">
-            <h4 class="hobby-dog__name">{{ siteData.dog.name }}</h4>
-            <p class="hobby-dog__blurb">{{ siteData.dog.blurb }}</p>
-          </div>
-          <dl class="hobby-dog__facts">
-            <div class="hobby-dog__fact">
-              <dt>Breed</dt>
-              <dd>{{ siteData.dog.breed }}</dd>
-            </div>
-            <div class="hobby-dog__fact">
-              <dt>Born</dt>
-              <dd>{{ siteData.dog.birth }}</dd>
-            </div>
-            <div class="hobby-dog__fact">
-              <dt>Weight</dt>
-              <dd>{{ siteData.dog.weight }}</dd>
-            </div>
-            <div class="hobby-dog__fact">
-              <dt>Top speed</dt>
-              <dd>{{ siteData.dog.topSpeed }}</dd>
-            </div>
-            <div class="hobby-dog__fact">
-              <dt>Likes</dt>
-              <dd>{{ siteData.dog.likes.join(', ') }}</dd>
-            </div>
-          </dl>
-        </div>
-        <div id="cycling-adventures" class="hobby-rides">
-          <div class="hobby-rides__head">
+        <div
+          id="nubi"
+          class="hobby-track"
+          :class="{ 'pixel-spotlight': state.spotlight === 'nubi' }"
+        >
+          <div class="hobby-track__head">
             <AnchorHeading
-              class="hobby-rides__title"
+              class="hobby-track__title"
+              tag="h4"
+              href="nubi"
+              :label="siteData.dog.name"
+            >
+              {{ siteData.dog.name }}
+            </AnchorHeading>
+            <p class="hobby-track__note">{{ siteData.dog.caption }}</p>
+          </div>
+          <div class="hobby-dog">
+            <figure class="hobby-dog__portrait">
+              <span class="hobby-dog__screen">
+                <img
+                  src="/nubi.webp"
+                  alt="Nubi, a white Lagotto Romagnolo, curled up in his patterned dog bed next to a red toy ball"
+                  width="560"
+                  height="598"
+                  class="hobby-dog__photo"
+                  loading="lazy"
+                />
+              </span>
+            </figure>
+            <div class="hobby-dog__body">
+              <p class="hobby-dog__blurb">{{ siteData.dog.blurb }}</p>
+              <dl class="hobby-dog__facts">
+                <div class="hobby-dog__fact">
+                  <dt>Breed</dt>
+                  <dd>{{ siteData.dog.breed }}</dd>
+                </div>
+                <div class="hobby-dog__fact">
+                  <dt>Born</dt>
+                  <dd>{{ siteData.dog.birth }}</dd>
+                </div>
+                <div class="hobby-dog__fact">
+                  <dt>Weight</dt>
+                  <dd>{{ siteData.dog.weight }}</dd>
+                </div>
+                <div class="hobby-dog__fact">
+                  <dt>Top speed</dt>
+                  <dd>{{ siteData.dog.topSpeed }}</dd>
+                </div>
+                <div class="hobby-dog__fact hobby-dog__fact--wide">
+                  <dt>Likes</dt>
+                  <dd>{{ siteData.dog.likes.join(', ') }}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div
+          id="cycling-adventures"
+          class="hobby-track"
+          :class="{ 'pixel-spotlight': state.spotlight === 'cycling-adventures' }"
+        >
+          <div class="hobby-track__head">
+            <AnchorHeading
+              class="hobby-track__title"
               tag="h4"
               href="cycling-adventures"
               label="Cycling adventures"
             >
               Cycling adventures
             </AnchorHeading>
-            <p class="hobby-rides__note">Teasers only — ride reports still being written</p>
           </div>
           <figure class="hobby-rides__figure">
             <span class="hobby-rides__screen">
@@ -153,35 +159,8 @@ const rideNumbers = ['01', '02', '03']
                 loading="lazy"
               />
             </span>
-            <figcaption class="hobby-rides__caption">
-              Above the tree line, heading for the next pass
-            </figcaption>
+            <figcaption class="hobby-rides__caption">I enjoy going far, not fast</figcaption>
           </figure>
-          <ul class="hobby-rides__list">
-            <li
-              v-for="(ride, index) in siteData.cyclingAdventures"
-              :id="`cycling-${ride.slug}`"
-              :key="ride.slug"
-              class="hobby-ride"
-              :class="{ 'pixel-spotlight': state.spotlight === `cycling-${ride.slug}` }"
-            >
-              <span class="hobby-ride__meta">
-                <span class="hobby-ride__index" aria-hidden="true">{{
-                  rideNumbers[index % rideNumbers.length]
-                }}</span>
-                <span class="hobby-ride__status">Teaser</span>
-              </span>
-              <AnchorHeading
-                class="hobby-ride__title"
-                tag="h5"
-                :href="`cycling-${ride.slug}`"
-                :label="ride.title"
-              >
-                {{ ride.title }}
-              </AnchorHeading>
-              <p class="hobby-ride__teaser">{{ ride.teaser }}</p>
-            </li>
-          </ul>
         </div>
       </div>
     </div>

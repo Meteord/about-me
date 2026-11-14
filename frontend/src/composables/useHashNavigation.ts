@@ -17,6 +17,7 @@ const SECTION_BY_ANCHOR: Record<string, SectionId> = {
   education: 'about',
   skills: 'about',
   hobbies: 'about',
+  nubi: 'about',
   'cycling-adventures': 'about',
   blog: 'blog',
   projects: 'projects',
