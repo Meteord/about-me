@@ -11,6 +11,7 @@ const root = ref<HTMLElement | null>(null)
 useReveal(root, { key: 'about-details' })
 
 const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pink']
+const rideNumbers = ['01', '02', '03']
 </script>
 
 <template>
@@ -128,6 +129,59 @@ const tagVariants = ['pixel-chip--amber', 'pixel-chip--orange', 'pixel-chip--pin
               <dd>{{ siteData.dog.likes.join(', ') }}</dd>
             </div>
           </dl>
+        </div>
+        <div id="cycling-adventures" class="hobby-rides">
+          <div class="hobby-rides__head">
+            <AnchorHeading
+              class="hobby-rides__title"
+              tag="h4"
+              href="cycling-adventures"
+              label="Cycling adventures"
+            >
+              Cycling adventures
+            </AnchorHeading>
+            <p class="hobby-rides__note">Teasers only — ride reports still being written</p>
+          </div>
+          <figure class="hobby-rides__figure">
+            <span class="hobby-rides__screen">
+              <img
+                src="/fahrrad.webp"
+                alt="A cyclist climbing a high alpine pass road, a Jeep ahead, with a green mountain ridge and an old stone tower under a blue sky"
+                width="1200"
+                height="1600"
+                class="hobby-rides__photo"
+                loading="lazy"
+              />
+            </span>
+            <figcaption class="hobby-rides__caption">
+              Above the tree line, heading for the next pass
+            </figcaption>
+          </figure>
+          <ul class="hobby-rides__list">
+            <li
+              v-for="(ride, index) in siteData.cyclingAdventures"
+              :id="`cycling-${ride.slug}`"
+              :key="ride.slug"
+              class="hobby-ride"
+              :class="{ 'pixel-spotlight': state.spotlight === `cycling-${ride.slug}` }"
+            >
+              <span class="hobby-ride__meta">
+                <span class="hobby-ride__index" aria-hidden="true">{{
+                  rideNumbers[index % rideNumbers.length]
+                }}</span>
+                <span class="hobby-ride__status">Teaser</span>
+              </span>
+              <AnchorHeading
+                class="hobby-ride__title"
+                tag="h5"
+                :href="`cycling-${ride.slug}`"
+                :label="ride.title"
+              >
+                {{ ride.title }}
+              </AnchorHeading>
+              <p class="hobby-ride__teaser">{{ ride.teaser }}</p>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

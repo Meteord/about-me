@@ -281,6 +281,8 @@ textarea {
 /* Every anchor target clears the sticky menu bar and the top edge. */
 .pixel-anchor-heading,
 .pixel-card[id],
+.hobby-rides[id],
+.hobby-ride[id],
 section[id] {
   scroll-margin-top: 4.75rem;
 }
@@ -289,6 +291,8 @@ section[id] {
   /* No sticky bar down here — just a breath of space. */
   .pixel-anchor-heading,
   .pixel-card[id],
+  .hobby-rides[id],
+  .hobby-ride[id],
   section[id] {
     scroll-margin-top: 2.5rem;
   }
@@ -758,7 +762,8 @@ section[id] {
   margin: 0;
 }
 
-.hobby-dog__screen {
+.hobby-dog__screen,
+.hobby-rides__screen {
   position: relative;
   display: block;
   padding: 0.25rem;
@@ -777,7 +782,8 @@ section[id] {
   filter: drop-shadow(3px 3px 0 rgba(16, 12, 7, 0.55));
 }
 
-.hobby-dog__screen::after {
+.hobby-dog__screen::after,
+.hobby-rides__screen::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -794,7 +800,8 @@ section[id] {
   object-position: 50% 35%;
 }
 
-.hobby-dog__caption {
+.hobby-dog__caption,
+.hobby-rides__caption {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -805,7 +812,8 @@ section[id] {
   color: var(--pixel-ink-dim);
 }
 
-.hobby-dog__caption::before {
+.hobby-dog__caption::before,
+.hobby-rides__caption::before {
   content: '';
   width: 0.5rem;
   height: 0.5rem;
@@ -887,6 +895,128 @@ section[id] {
   .hobby-dog__portrait {
     width: 9rem;
   }
+}
+
+/* Long-distance rides under the hobbies: teaser cards only, no articles. */
+.hobby-rides {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--pixel-border);
+}
+
+.hobby-rides__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.hobby-rides__title {
+  font-family: var(--font-body);
+  font-size: var(--type-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--pixel-title);
+}
+
+.hobby-rides__note {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pixel-ink-dim);
+}
+
+.hobby-rides__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+}
+
+.hobby-rides__photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 21 / 8;
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+@media (max-width: 640px) {
+  .hobby-rides__photo {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+.hobby-rides__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.hobby-ride {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--pixel-panel);
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+  box-shadow: var(--shadow-soft);
+  transition: border-color 120ms steps(2, end);
+}
+
+@media (hover: hover) {
+  .hobby-ride:hover {
+    border-color: var(--pixel-border-light);
+  }
+}
+
+.hobby-ride__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hobby-ride__index {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.12em;
+  color: var(--pixel-accent);
+}
+
+.hobby-ride__status {
+  padding: 0.1rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pixel-ink-dim);
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+}
+
+.hobby-ride__title {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--pixel-title);
+  text-wrap: balance;
+}
+
+.hobby-ride__teaser {
+  max-width: 40ch;
+  font-size: var(--type-small);
+  line-height: 1.55;
+  color: var(--pixel-ink-dim);
+  text-wrap: pretty;
 }
 
 .pixel-rule {

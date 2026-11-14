@@ -42,6 +42,14 @@ Hi, I'm Michael Jaumann. I live in Munich and work for the [KIES](https://ki.mue
 - Weight: 11 kg
 - Top speed over 1 km: 3:00 min per km
 - Likes: Food, Sniffing, Other dogs, Swimming
+
+### Cycling adventures
+
+Teasers only — the ride reports are still being written.
+
+- **München – Gardasee nonstop:** From Munich over the Alps to the shore of Lake Garda in one push — no hotel bed, no shortcut, just the road south.
+- **München – Pichelsteiner nonstop:** The second nonstop ride out of Munich: the same no-sleep format, a different finish line waiting at the end of the night.
+- **EuroVelo 4: Köln – Mont Saint-Michel:** West along EuroVelo 4 from Cologne to the abbey sitting in the tidal flats at Mont Saint-Michel.
 `
 
 const projectsMd = `# Projects
@@ -98,7 +106,7 @@ writeFileSync(join(llmsDir, 'blog.md'), blogMd)
 
 const llmsTxt = `# Michael Jaumann | AI and ML Engineer
 
-> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies (including his dog Nubi), and contact links.
+> Personal "about me" page for Michael Jaumann, an AI and ML engineer in Munich. Covers his work for the KIES team, education, skills, projects (MUCGPT), hobbies (including his dog Nubi and long-distance cycling adventures), and contact links.
 
 ## Links
 - [Home](https://meteord.github.io/about-me/): Michael Jaumann's retro pixel-art portfolio.

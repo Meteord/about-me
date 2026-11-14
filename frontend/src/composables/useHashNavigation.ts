@@ -17,6 +17,7 @@ const SECTION_BY_ANCHOR: Record<string, SectionId> = {
   education: 'about',
   skills: 'about',
   hobbies: 'about',
+  'cycling-adventures': 'about',
   blog: 'blog',
   projects: 'projects',
   contact: 'contact',
@@ -61,6 +62,7 @@ function sectionFor(id: string): SectionId | null {
   const direct = SECTION_BY_ANCHOR[id]
   if (direct) return direct
   if (id.startsWith('blog-') || id === 'eval-results') return 'blog'
+  if (id.startsWith('cycling-')) return 'about'
   if (id.startsWith('projects-')) return 'projects'
   if (id.startsWith('contact-')) return 'contact'
   return null

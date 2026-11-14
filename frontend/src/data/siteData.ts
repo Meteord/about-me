@@ -39,6 +39,13 @@ export interface BlogPost {
   readTime: string
 }
 
+/** A long-distance ride, published as a teaser until its report is written. */
+export interface CyclingAdventure {
+  slug: string
+  title: string
+  teaser: string
+}
+
 export interface ContactLinks {
   linkedin: string
   github: string
@@ -105,6 +112,26 @@ export const siteData = {
     { label: 'Others', items: ['OpenCV', 'OpenGL', 'OMNeT++'] },
   ] as SkillGroup[],
   hobbies: ['Running', 'Cycling', 'Walking with my dog'],
+  cyclingAdventures: [
+    {
+      slug: 'muenchen-gardasee',
+      title: 'München – Gardasee nonstop',
+      teaser:
+        'From Munich over the Alps to the shore of Lake Garda in one push — no hotel bed, no shortcut, just the road south.',
+    },
+    {
+      slug: 'muenchen-pichelsteiner',
+      title: 'München – Pichelsteiner nonstop',
+      teaser:
+        'The second nonstop ride out of Munich: the same no-sleep format, a different finish line waiting at the end of the night.',
+    },
+    {
+      slug: 'koeln-mont-saint-michel',
+      title: 'EuroVelo 4: Köln – Mont Saint-Michel',
+      teaser:
+        'West along EuroVelo 4 from Cologne to the abbey sitting in the tidal flats at Mont Saint-Michel.',
+    },
+  ] as CyclingAdventure[],
   dog: {
     name: 'Nubi',
     breed: 'Lagotto Romagnolo',
@@ -269,6 +296,9 @@ export function aboutMeMarkdown(topic: AboutTopic = 'all'): string {
           `- Weight: ${dog.weight}`,
           `- Top speed over 1 km: ${dog.topSpeed}`,
           `- Likes: ${dog.likes.join(', ')}`,
+          '### Cycling adventures',
+          'Long-distance rides. Only teasers are published; the ride reports are still being written.',
+          ...siteData.cyclingAdventures.map((ride) => `- ${ride.title}: ${ride.teaser}`),
         ])
         .join('\n'),
     )
