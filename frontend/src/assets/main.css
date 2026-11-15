@@ -808,13 +808,15 @@ section[id] {
   background: repeating-linear-gradient(0deg, rgba(12, 9, 6, 0.16) 0 1px, transparent 1px 3px);
 }
 
+/* Nubi lies right of centre on the floor, so the 4/5 crop leans right to
+   keep his face in frame. */
 .hobby-dog__photo {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 4 / 5;
   object-fit: cover;
-  object-position: 50% 24%;
+  object-position: 80% 45%;
 }
 
 /* From 640px the story leads and the snapshot sits beside the fact sheet. */

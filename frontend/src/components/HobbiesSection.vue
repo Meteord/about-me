@@ -44,9 +44,9 @@ useReveal(root, { key: 'hobbies' })
             <span class="hobby-dog__screen">
               <img
                 src="/nubi.webp"
-                alt="Nubi, a white Lagotto Romagnolo, curled up in his patterned dog bed next to a red toy ball"
-                width="560"
-                height="598"
+                alt="Nubi, a white Lagotto Romagnolo, lying stretched out on a wooden floor"
+                width="1600"
+                height="900"
                 class="hobby-dog__photo"
                 loading="lazy"
               />
